@@ -1,6 +1,6 @@
 module github.com/adityadeshlahre/probo-v1/server
 
-go 1.25.0
+go 1.25.1
 
 require (
 	github.com/labstack/echo/v4 v4.13.4 // indirect

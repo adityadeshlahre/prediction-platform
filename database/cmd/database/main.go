@@ -8,106 +8,18 @@ import (
 	"time"
 
 	"github.com/adityadeshlahre/probo-v1/shared/redis"
+	"github.com/adityadeshlahre/probo-v1/shared/types"
 )
 
 const DefaultContextTimeout = 30
 
-type Balance struct {
-	Id      string  `json:"id"`
-	UserId  string  `json:"userId"`
-	Locked  float64 `json:"locked"`
-	Balance float64 `json:"balance"`
-}
-
-type User struct {
-	Id    string          `json:"id"`
-	Stock json.RawMessage `json:"stock"`
-}
-
-type OrderStatus string
-
-const (
-	PENDING   OrderStatus = "PENDING"
-	COMPLETED OrderStatus = "COMPLETED"
-	CANCELLED OrderStatus = "CANCELLED"
-)
-
-type orderType string
-
-const (
-	BUY  orderType = "BUY"
-	SELL orderType = "SELL"
-)
-
-type symbolStockType string
-
-const (
-	YES symbolStockType = "YES"
-	NO  symbolStockType = "NO"
-)
-
-type Order struct {
-	Id              string      `json:"id"`
-	UserId          string      `json:"userId"`
-	OrderType       orderType   `json:"orderType"`
-	Quantity        float64     `json:"quantity"`
-	FilledQty       float64     `json:"filledQty"`
-	Price           float64     `json:"price"`
-	Status          OrderStatus `json:"status"`
-	Symbol          string      `json:"symbol"`
-	SymbolStockType string      `json:"symbolStockType"`
-	CreatedAt       string      `json:"createdAt"`
-	UpdatedAt       string      `json:"updatedAt"`
-}
-
-type TransectionType string
-
-const (
-	SOLD    TransectionType = "SOLD"
-	BOUGHT  TransectionType = "BOUGHT"
-	DEPOSIT TransectionType = "DEPOSIT"
-	CANCLE  TransectionType = "CANCLE"
-)
-
-type Transection struct {
-	Id              string          `json:"id"`
-	MakerId         string          `json:"makerId"` // userId
-	GiverId         []string        `json:"giverId"` // exchangerID
-	TakerId         string          `json:"takerId"` // userId
-	TransectionType TransectionType `json:"transectionType"`
-	Quantity        float64         `json:"quantity"`
-	Price           float64         `json:"price"`
-	Symbol          string          `json:"symbol"`
-	SymbolStockType string          `json:"symbolStockType"`
-	CreatedAt       string          `json:"createdAt"`
-	UpdatedAt       string          `json:"updatedAt"`
-}
-
-type Market struct {
-	Id                string `json:"id"`
-	Symbol            string `json:"symbol"`
-	SymbolStockType   string `json:"symbolStockType"`
-	SourceOfTruth     string `json:"sourceOfTruth"`
-	Heading           string `json:"heading"`
-	EventType         string `json:"eventType"`
-	RepeatEventTime   string `json:"repeatEventTime"`
-	EndEventAfterTime string `json:"endEventAfterTime"`
-	CreatedAt         string `json:"createdAt"`
-	UpdatedAt         string `json:"updatedAt"`
-}
-
-var Orders []Order
-var Users []User
-var Balances []Balance
-var Transections []Transection
-var Markets []Market
+var Orders []types.Order
+var Users []types.User
+var Balances []types.Balance
+var Transections []types.Transection
+var Markets []types.Market
 
 var transectionCounter int = 1
-
-type IncomingMessage struct {
-	Type string          `json:"type"`
-	Data json.RawMessage `json:"data"`
-}
 
 func main() {
 	redis.InitRedis()
@@ -128,49 +40,49 @@ func main() {
 }
 
 func handleIncomingMessages(message []byte) error {
-	var msg IncomingMessage
+	var msg types.IncomingMessage
 	err := json.Unmarshal(message, &msg)
 	if err != nil {
 		return err
 	}
 	switch msg.Type {
 	case "ORDER":
-		var order Order
+		var order types.Order
 		err = json.Unmarshal(msg.Data, &order)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateOrder(order)
 	case "MARKET":
-		var market Market
+		var market types.Market
 		err = json.Unmarshal(msg.Data, &market)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateMarket(market)
 	case "USER":
-		var user User
+		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateUser(user)
 	case "BALANCE":
-		var balance Balance
+		var balance types.Balance
 		err = json.Unmarshal(msg.Data, &balance)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateBalance(balance)
 	case "STOCK":
-		var user User
+		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateUserStock(user)
 	case "TRANSECTION":
-		var transection Transection
+		var transection types.Transection
 		err = json.Unmarshal(msg.Data, &transection)
 		if err != nil {
 			return err
@@ -181,7 +93,7 @@ func handleIncomingMessages(message []byte) error {
 	}
 }
 
-func createTransection(data Transection) error {
+func createTransection(data types.Transection) error {
 	data.Id = fmt.Sprintf("transection%d", transectionCounter)
 	transectionCounter++
 	data.CreatedAt = time.Now().Format(time.RFC3339)
@@ -190,7 +102,7 @@ func createTransection(data Transection) error {
 	return nil
 }
 
-func createOrUpdateOrder(data Order) error {
+func createOrUpdateOrder(data types.Order) error {
 	for i := range Orders {
 		if Orders[i].Id == data.Id {
 			Orders[i].FilledQty += data.FilledQty
@@ -207,7 +119,7 @@ func createOrUpdateOrder(data Order) error {
 	return nil
 }
 
-func createOrUpdateBalance(data Balance) error {
+func createOrUpdateBalance(data types.Balance) error {
 	for i := range Balances {
 		if Balances[i].UserId == data.UserId {
 			Balances[i].Balance = data.Balance
@@ -220,7 +132,7 @@ func createOrUpdateBalance(data Balance) error {
 	return nil
 }
 
-func createOrUpdateUser(data User) error {
+func createOrUpdateUser(data types.User) error {
 	for i := range Users {
 		if Users[i].Id == data.Id {
 			Users[i] = data
@@ -231,7 +143,7 @@ func createOrUpdateUser(data User) error {
 	return nil
 }
 
-func createOrUpdateUserStock(data User) error {
+func createOrUpdateUserStock(data types.User) error {
 	for i := range Users {
 		if Users[i].Id == data.Id {
 			Users[i].Stock = data.Stock
@@ -242,7 +154,7 @@ func createOrUpdateUserStock(data User) error {
 	return nil
 }
 
-func createOrUpdateMarket(data Market) error {
+func createOrUpdateMarket(data types.Market) error {
 	for i := range Markets {
 		if Markets[i].Id == data.Id {
 			Markets[i] = data

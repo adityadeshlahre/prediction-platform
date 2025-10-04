@@ -1,6 +1,6 @@
 module github.com/adityadeshlahre/probo-v1/database
 
-go 1.25.0
+go 1.25.1
 
 require github.com/adityadeshlahre/probo-v1/shared v0.0.0
 

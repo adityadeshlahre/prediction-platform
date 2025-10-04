@@ -1,6 +1,6 @@
 module github.com/adityadeshlahre/probo-v1/shared
 
-go 1.25.0
+go 1.25.1
 
 require github.com/redis/go-redis/v9 v9.14.0
 
