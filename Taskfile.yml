@@ -1,0 +1,24 @@
+version: "3"
+
+tasks:
+  help:
+    desc: print this help message
+    cmds:
+      - task --list-all
+    silent: true
+
+  build:
+    desc: build the project
+    cmds:
+      - cd database && go build ./cmd/database
+      - cd engine && go build ./cmd/engine
+      - cd server && go build ./cmd/server
+      - cd socket && go build ./cmd/socket
+
+  run:
+    desc: run all applications
+    cmds:
+      - cd database && go run ./cmd/database/main.go &
+      - cd engine && go run ./cmd/engine/main.go &
+      - cd server && go run ./cmd/server/main.go &
+      - cd socket && go run ./cmd/socket/main.go &
