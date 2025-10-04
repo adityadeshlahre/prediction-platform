@@ -22,3 +22,11 @@ tasks:
       - cd engine && go run ./cmd/engine/main.go &
       - cd server && go run ./cmd/server/main.go &
       - cd socket && go run ./cmd/socket/main.go &
+
+  dev:
+    desc: run all applications with live reload
+    cmds:
+      - cd database && air -c .air.toml &
+      - cd engine && air -c .air.toml &
+      - cd server && air -c .air.toml &
+      - cd socket && air -c .air.toml &

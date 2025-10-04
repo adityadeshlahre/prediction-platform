@@ -34,7 +34,7 @@ func main() {
 
 	go func() {
 		for msg := range databaseResponsePubsub.Channel() {
-			println("Received message:", msg.Payload)
+			println("Received message in database:", msg.Payload)
 		}
 	}()
 	ctx := context.Background()

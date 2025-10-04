@@ -33,7 +33,7 @@ func main() {
 					}
 				}
 			}
-			println("Received message:", msg.Payload)
+			println("Received message in server:", msg.Payload)
 		}
 	}()
 

@@ -112,7 +112,7 @@ type IncomingMessage struct {
 
 func handleIncomingMessages(conn *websocket.Conn, msgType int, msg []byte) {
 	log.Println("Message type:", msgType)
-	log.Println("Received message:", string(msg))
+	log.Println("Received message in socket:", string(msg))
 
 	var incoming IncomingMessage
 	if err := json.Unmarshal(msg, &incoming); err != nil {
@@ -207,7 +207,7 @@ func main() {
 
 	go func() {
 		for msg := range bookPubsub.Channel() {
-			println("Received message:", msg.Payload)
+			println("Received message in socket:", msg.Payload)
 		}
 	}()
 
