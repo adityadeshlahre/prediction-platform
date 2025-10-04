@@ -8,8 +8,9 @@ import (
 	"time"
 
 	server "github.com/adityadeshlahre/probo-v1/engine/handler"
-	"github.com/adityadeshlahre/probo-v1/shared/redis"
+	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	"github.com/adityadeshlahre/probo-v1/shared/types"
+	"github.com/redis/go-redis/v9"
 )
 
 const DefaultContextTimeout = 30
@@ -19,20 +20,23 @@ var Users []types.User
 var Balances []types.Balance
 var Transections []types.Transection
 var Markets []types.Market
+var dbPublishClient *redis.Client
+var client *redis.Client
 
 var transectionCounter int = 1
 
 func main() {
-	redis.InitRedis()
+	sharedRedis.InitRedis()
 	e := server.NewServer()
-	e.Logger.Fatal(e.Start(":8082"))
-	client := redis.GetRedisClient()
-	databaseClient := redis.GetRedisClient()
+	go func() {
+		if err := e.Start(":8082"); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	client = sharedRedis.GetRedisClient()
+	databaseClient := sharedRedis.GetRedisClient()
 	databasePubsub := databaseClient.Subscribe(context.Background(), "db-actions")
-	err := client.Publish(context.Background(), "httptoengine", "Hello, Redis!").Err()
-	if err != nil {
-		panic(err)
-	}
+	dbPublishClient = sharedRedis.GetRedisClient()
 
 	go func() {
 		for msg := range databasePubsub.Channel() {
@@ -67,42 +71,72 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		return createOrUpdateOrder(order)
+		err = createOrUpdateOrder(order)
+		if err != nil {
+			return err
+		}
+		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		return nil
 	case "MARKET":
 		var market types.Market
 		err = json.Unmarshal(msg.Data, &market)
 		if err != nil {
 			return err
 		}
-		return createOrUpdateMarket(market)
+		err = createOrUpdateMarket(market)
+		if err != nil {
+			return err
+		}
+		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		return nil
 	case "USER":
 		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
 			return err
 		}
-		return createOrUpdateUser(user)
+		err = createOrUpdateUser(user)
+		if err != nil {
+			return err
+		}
+		client.Publish(context.Background(), "server-responses", message).Err()
+		return nil
 	case "BALANCE":
 		var balance types.Balance
 		err = json.Unmarshal(msg.Data, &balance)
 		if err != nil {
 			return err
 		}
-		return createOrUpdateBalance(balance)
+		err = createOrUpdateBalance(balance)
+		if err != nil {
+			return err
+		}
+		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		return nil
 	case "STOCK":
 		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
 			return err
 		}
-		return createOrUpdateUserStock(user)
+		err = createOrUpdateUserStock(user)
+		if err != nil {
+			return err
+		}
+		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		return nil
 	case "TRANSECTION":
 		var transection types.Transection
 		err = json.Unmarshal(msg.Data, &transection)
 		if err != nil {
 			return err
 		}
-		return createTransection(transection)
+		err = createTransection(transection)
+		if err != nil {
+			return err
+		}
+		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		return nil
 	default:
 		log.Println("Unknown message type:", msg.Type)
 	}

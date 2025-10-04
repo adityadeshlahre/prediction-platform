@@ -11,6 +11,7 @@ import (
 )
 
 var rdb *redis.Client
+var ServerAwaitsForResponseMap = make(map[string]chan string)
 
 // InitRedis initializes the Redis client
 func InitRedis() {

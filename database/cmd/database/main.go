@@ -24,6 +24,7 @@ var transectionCounter int = 1
 func main() {
 	redis.InitRedis()
 	client := redis.GetRedisClient()
+	responseClient := redis.GetRedisClient()
 	databaseResponseClient := redis.GetRedisClient()
 	databaseResponsePubsub := databaseResponseClient.Subscribe(context.Background(), "db-responses")
 	err := client.Publish(context.Background(), "db-actions", "Hello, Redis!").Err()
@@ -45,6 +46,9 @@ func main() {
 		}
 		message := []byte(res[1])
 		err = handleIncomingMessages(message)
+		if err == nil {
+			responseClient.Publish(context.Background(), "engine-responses", message).Err()
+		}
 		if err != nil {
 			log.Println("Error handling message:", err)
 		}
