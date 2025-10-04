@@ -111,6 +111,7 @@ type IncomingMessage struct {
 }
 
 func handleIncomingMessages(conn *websocket.Conn, msgType int, msg []byte) {
+	log.Println("Message type:", msgType)
 	log.Println("Received message:", string(msg))
 
 	var incoming IncomingMessage
