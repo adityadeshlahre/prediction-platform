@@ -27,9 +27,21 @@ func main() {
 	e := server.NewServer()
 	e.Logger.Fatal(e.Start(":8082"))
 	client := redis.GetRedisClient()
+	databaseClient := redis.GetRedisClient()
+	databasePubsub := databaseClient.Subscribe(context.Background(), "db-actions")
+	err := client.Publish(context.Background(), "httptoengine", "Hello, Redis!").Err()
+	if err != nil {
+		panic(err)
+	}
+
+	go func() {
+		for msg := range databasePubsub.Channel() {
+			println("Received message:", msg.Payload)
+		}
+	}()
 	ctx := context.Background()
 	for {
-		res, err := client.BRPop(ctx, 0, "db-actions").Result()
+		res, err := client.BRPop(ctx, 0, "httptoengine").Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue

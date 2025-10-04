@@ -197,6 +197,19 @@ func main() {
 	redis.InitRedis()
 
 	http.HandleFunc("/ws", wsHandler)
+	client := redis.GetRedisClient()
+	bookClient := redis.GetRedisClient()
+	bookPubsub := bookClient.Subscribe(context.Background(), "BTCUSDT")
+	err := client.Publish(context.Background(), "BTCUSDT", `{"symbol":"BTCUSDT","bids":[["50000","1"],["49900","2"]],"asks":[["50100","1.5"],["50200","3"]]}`).Err()
+	if err != nil {
+		panic(err)
+	}
+
+	go func() {
+		for msg := range bookPubsub.Channel() {
+			println("Received message:", msg.Payload)
+		}
+	}()
 
 	fmt.Println("WebSocket server listening on :8081")
 	if err := http.ListenAndServe(":8081", nil); err != nil {
