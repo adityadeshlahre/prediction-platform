@@ -10,6 +10,7 @@ import (
 	server "github.com/adityadeshlahre/probo-v1/engine/handler"
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	"github.com/adityadeshlahre/probo-v1/shared/types"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -20,8 +21,13 @@ var Users []types.User
 var Balances []types.Balance
 var Transections []types.Transection
 var Markets []types.Market
-var dbPublishClient *redis.Client
-var client *redis.Client
+
+var databaseProducerClient *redis.Client
+var engineToServerConsumerClient *redis.Client
+
+var engineToDatabasePubSubClient *redis.Client
+var engineToServerPubSubClient *redis.Client
+var engineToSocketPubSubClient *redis.Client
 
 var transectionCounter int = 1
 
@@ -33,10 +39,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	client = sharedRedis.GetRedisClient()
+	databaseProducerClient = sharedRedis.GetRedisClient()
+	engineToSocketPubSubClient = sharedRedis.GetRedisClient()
 	databaseClient := sharedRedis.GetRedisClient()
 	databasePubsub := databaseClient.Subscribe(context.Background(), "db-actions")
-	dbPublishClient = sharedRedis.GetRedisClient()
 
 	go func() {
 		for msg := range databasePubsub.Channel() {
@@ -45,7 +51,7 @@ func main() {
 	}()
 	ctx := context.Background()
 	for {
-		res, err := client.BRPop(ctx, 0, "httptoengine").Result()
+		res, err := engineToServerConsumerClient.BRPop(ctx, 0, "httptoengine").Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue
@@ -75,7 +81,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
 		return nil
 	case "MARKET":
 		var market types.Market
@@ -87,7 +93,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
 		return nil
 	case "USER":
 		var user types.User
@@ -99,7 +105,13 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		client.Publish(context.Background(), "server-responses", message).Err()
+		balanceId, err := gonanoid.New()
+		if err != nil {
+			return err
+		}
+		go createOrUpdateBalance(types.Balance{Id: balanceId, UserId: user.Id, Balance: 1000, Locked: 0})
+		go databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
+		engineToServerConsumerClient.Publish(context.Background(), "server-responses", message).Err()
 		return nil
 	case "BALANCE":
 		var balance types.Balance
@@ -111,7 +123,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
 		return nil
 	case "STOCK":
 		var user types.User
@@ -123,7 +135,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
 		return nil
 	case "TRANSECTION":
 		var transection types.Transection
@@ -135,7 +147,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		dbPublishClient.Publish(context.Background(), "db-actions", message).Err()
+		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
 		return nil
 	default:
 		log.Println("Unknown message type:", msg.Type)

@@ -7,8 +7,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/adityadeshlahre/probo-v1/shared/redis"
+	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	"github.com/adityadeshlahre/probo-v1/shared/types"
+	"github.com/redis/go-redis/v9"
 )
 
 const DefaultContextTimeout = 30
@@ -19,18 +20,17 @@ var Balances []types.Balance
 var Transections []types.Transection
 var Markets []types.Market
 
+var databaseConsumerClient *redis.Client
+
+var databaseToEnginePubSubClient *redis.Client
+
 var transectionCounter int = 1
 
 func main() {
-	redis.InitRedis()
-	client := redis.GetRedisClient()
-	responseClient := redis.GetRedisClient()
-	databaseResponseClient := redis.GetRedisClient()
-	databaseResponsePubsub := databaseResponseClient.Subscribe(context.Background(), "db-responses")
-	err := client.Publish(context.Background(), "db-actions", "Hello, Redis!").Err()
-	if err != nil {
-		panic(err)
-	}
+	sharedRedis.InitRedis()
+	databaseConsumerClient = sharedRedis.GetRedisClient()
+	databaseToEnginePubSubClient = sharedRedis.GetRedisClient()
+	databaseResponsePubsub := databaseToEnginePubSubClient.Subscribe(context.Background(), "db-responses")
 
 	go func() {
 		for msg := range databaseResponsePubsub.Channel() {
@@ -39,7 +39,7 @@ func main() {
 	}()
 	ctx := context.Background()
 	for {
-		res, err := client.BRPop(ctx, 0, "db-actions").Result()
+		res, err := databaseConsumerClient.BRPop(ctx, 0, "db-actions").Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue
@@ -47,7 +47,7 @@ func main() {
 		message := []byte(res[1])
 		err = handleIncomingMessages(message)
 		if err == nil {
-			responseClient.Publish(context.Background(), "engine-responses", message).Err()
+			databaseToEnginePubSubClient.Publish(context.Background(), "engine-responses", message).Err()
 		}
 		if err != nil {
 			log.Println("Error handling message:", err)

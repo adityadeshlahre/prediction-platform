@@ -3,15 +3,18 @@ package user
 import (
 	"encoding/json"
 
-	"github.com/adityadeshlahre/probo-v1/shared/redis"
+	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	"github.com/adityadeshlahre/probo-v1/shared/types"
 	"github.com/labstack/echo/v4"
+	"github.com/redis/go-redis/v9"
 )
 
 var router *echo.Echo
+var serverToEngineClient *redis.Client
 
-func InitUserRoute(e *echo.Echo) {
+func InitUserRoute(e *echo.Echo, client *redis.Client) {
 	router = e
+	serverToEngineClient = client
 	userRoutes()
 }
 
@@ -24,22 +27,20 @@ func userRoutes() {
 
 func createUser(c echo.Context) error {
 	id := c.Param("id")
-	correlationId := id
 	user := types.User{Id: id}
 	data, _ := json.Marshal(user)
 	msg := types.IncomingMessage{
-		Type:          "USER",
-		Data:          data,
+		Type: "USER",
+		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	client := redis.GetRedisClient()
-	err := client.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}
 	// Await response
 	ch := make(chan string, 1)
-	redis.ServerAwaitsForResponseMap[correlationId] = ch
+	sharedRedis.ServerAwaitsForResponseMap[id] = ch
 	<-ch
 	return c.String(200, "User "+id+" created")
 }

@@ -8,8 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/adityadeshlahre/probo-v1/shared/redis"
+	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/v9"
 )
 
 var upgrader = websocket.Upgrader{
@@ -19,6 +20,8 @@ var upgrader = websocket.Upgrader{
 		return true // allow all origins (for now)
 	},
 }
+
+var socketToEnginePubSubClient *redis.Client
 
 type CSD struct {
 	Symbol      string
@@ -36,7 +39,7 @@ var ctx = context.Background()
 
 func startRedisSubscription(symbol string) {
 	go func() {
-		pubsub := redis.GetRedisClient().Subscribe(ctx, symbol)
+		pubsub := sharedRedis.GetRedisClient().Subscribe(ctx, symbol)
 		defer pubsub.Close()
 
 		for msg := range pubsub.Channel() {
@@ -194,16 +197,11 @@ func handleConnectionClosed(conn *websocket.Conn) {
 }
 
 func main() {
-	redis.InitRedis()
+	sharedRedis.InitRedis()
 
 	http.HandleFunc("/ws", wsHandler)
-	client := redis.GetRedisClient()
-	bookClient := redis.GetRedisClient()
-	bookPubsub := bookClient.Subscribe(context.Background(), "BTCUSDT")
-	err := client.Publish(context.Background(), "BTCUSDT", `{"symbol":"BTCUSDT","bids":[["50000","1"],["49900","2"]],"asks":[["50100","1.5"],["50200","3"]]}`).Err()
-	if err != nil {
-		panic(err)
-	}
+	socketToEnginePubSubClient = sharedRedis.GetRedisClient()
+	bookPubsub := socketToEnginePubSubClient.Subscribe(context.Background(), "BTCUSDT")
 
 	go func() {
 		for msg := range bookPubsub.Channel() {
