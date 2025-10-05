@@ -38,7 +38,7 @@ func getBalance(c echo.Context) error {
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}
@@ -57,7 +57,7 @@ func getStocks(c echo.Context) error {
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}
@@ -77,7 +77,7 @@ func getBalanceById(c echo.Context) error {
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}
@@ -97,7 +97,7 @@ func getStocksById(c echo.Context) error {
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}

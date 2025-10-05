@@ -20,17 +20,17 @@ var Balances []types.Balance
 var Transections []types.Transection
 var Markets []types.Market
 
-var databaseConsumerClient *redis.Client
+var databaseFromEngineQueueClient *redis.Client
 
-var databaseToEnginePubSubClient *redis.Client
+var databaseResponsePublisher *redis.Client
 
 var transectionCounter int = 1
 
 func main() {
 	sharedRedis.InitRedis()
-	databaseConsumerClient = sharedRedis.GetRedisClient()
-	databaseToEnginePubSubClient = sharedRedis.GetRedisClient()
-	databaseResponsePubsub := databaseToEnginePubSubClient.Subscribe(context.Background(), "db-responses")
+	databaseFromEngineQueueClient = sharedRedis.GetRedisClient()
+	databaseResponsePublisher = sharedRedis.GetRedisClient()
+	databaseResponsePubsub := databaseResponsePublisher.Subscribe(context.Background(), "DB_RESPONSES")
 
 	go func() {
 		for msg := range databaseResponsePubsub.Channel() {
@@ -39,7 +39,7 @@ func main() {
 	}()
 	ctx := context.Background()
 	for {
-		res, err := databaseConsumerClient.BRPop(ctx, 0, "db-actions").Result()
+		res, err := databaseFromEngineQueueClient.BRPop(ctx, 0, "DB_ACTIONS").Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue
@@ -47,7 +47,7 @@ func main() {
 		message := []byte(res[1])
 		err = handleIncomingMessages(message)
 		if err == nil {
-			databaseToEnginePubSubClient.Publish(context.Background(), "engine-responses", message).Err()
+			databaseResponsePublisher.Publish(context.Background(), "ENGINE_RESPONSES", message).Err()
 		}
 		if err != nil {
 			log.Println("Error handling message:", err)

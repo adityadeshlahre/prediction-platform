@@ -22,8 +22,8 @@ var Balances []types.Balance
 var Transections []types.Transection
 var Markets []types.Market
 
-var databaseProducerClient *redis.Client
-var engineToServerConsumerClient *redis.Client
+var engineToDatabaseQueueClient *redis.Client
+var engineFromServerQueueClient *redis.Client
 
 var engineToDatabasePubSubClient *redis.Client
 var engineToServerPubSubClient *redis.Client
@@ -39,10 +39,10 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-	databaseProducerClient = sharedRedis.GetRedisClient()
+	engineToDatabaseQueueClient = sharedRedis.GetRedisClient()
 	engineToSocketPubSubClient = sharedRedis.GetRedisClient()
 	databaseClient := sharedRedis.GetRedisClient()
-	databasePubsub := databaseClient.Subscribe(context.Background(), "db-actions")
+	databasePubsub := databaseClient.Subscribe(context.Background(), "DB_ACTIONS")
 
 	go func() {
 		for msg := range databasePubsub.Channel() {
@@ -51,7 +51,7 @@ func main() {
 	}()
 	ctx := context.Background()
 	for {
-		res, err := engineToServerConsumerClient.BRPop(ctx, 0, "httptoengine").Result()
+		res, err := engineFromServerQueueClient.BRPop(ctx, 0, "HTTP_TO_ENGINE").Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue
@@ -81,7 +81,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
 		return nil
 	case "MARKET":
 		var market types.Market
@@ -93,7 +93,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
 		return nil
 	case "USER":
 		var user types.User
@@ -110,8 +110,8 @@ func handleIncomingMessages(message []byte) error {
 			return err
 		}
 		go createOrUpdateBalance(types.Balance{Id: balanceId, UserId: user.Id, Balance: 1000, Locked: 0})
-		go databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
-		engineToServerConsumerClient.Publish(context.Background(), "server-responses", message).Err()
+		go engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", message).Err()
 		return nil
 	case "BALANCE":
 		var balance types.Balance
@@ -123,7 +123,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
 		return nil
 	case "STOCK":
 		var user types.User
@@ -135,7 +135,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
 		return nil
 	case "TRANSECTION":
 		var transection types.Transection
@@ -147,7 +147,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		databaseProducerClient.Publish(context.Background(), "db-actions", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
 		return nil
 	default:
 		log.Println("Unknown message type:", msg.Type)

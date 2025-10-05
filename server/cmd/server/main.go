@@ -17,16 +17,16 @@ const DefaultContextTimeout = 30
 
 var ctx = context.Background()
 
-var serverToEngineProducerClient *redis.Client
+var serverToEngineQueueClient *redis.Client
 
-var serverToEnginePubSubClient *redis.Client
+var serverResponseSubscriber *redis.Client
 
 func main() {
 	godotenv.Load()
 	sharedRedis.InitRedis()
-	serverToEngineProducerClient = sharedRedis.GetRedisClient()
-	serverToEnginePubSubClient = sharedRedis.GetRedisClient()
-	responsePubsub := serverToEnginePubSubClient.Subscribe(ctx, "server-responses")
+	serverToEngineQueueClient = sharedRedis.GetRedisClient()
+	serverResponseSubscriber = sharedRedis.GetRedisClient()
+	responsePubsub := serverResponseSubscriber.Subscribe(ctx, "SERVER_RESPONSES")
 
 	go func() {
 		for msg := range responsePubsub.Channel() {
@@ -45,7 +45,7 @@ func main() {
 	}()
 
 	e := server.NewServer()
-	user.InitUserRoute(e, serverToEngineProducerClient)
-	order.InitOrderRoutes(e, serverToEngineProducerClient)
+	user.InitUserRoute(e, serverToEngineQueueClient)
+	order.InitOrderRoutes(e, serverToEngineQueueClient)
 	e.Logger.Fatal(e.Start(":8080"))
 }

@@ -10,11 +10,11 @@ import (
 )
 
 var router *echo.Echo
-var serverToEngineClient *redis.Client
+var serverToEngineQueueClient *redis.Client
 
 func InitUserRoute(e *echo.Echo, client *redis.Client) {
 	router = e
-	serverToEngineClient = client
+	serverToEngineQueueClient = client
 	userRoutes()
 }
 
@@ -34,7 +34,7 @@ func createUser(c echo.Context) error {
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}

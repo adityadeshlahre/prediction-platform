@@ -10,7 +10,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-var rdb *redis.Client
+var redisClient *redis.Client
 var ServerAwaitsForResponseMap = make(map[string]chan string)
 
 // InitRedis initializes the Redis client
@@ -35,14 +35,14 @@ func InitRedis() {
 		}
 	}
 
-	rdb = redis.NewClient(&redis.Options{
+	redisClient = redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: redisPassword,
 		DB:       redisDB,
 	})
 
 	ctx := context.Background()
-	_, err = rdb.Ping(ctx).Result()
+	_, err = redisClient.Ping(ctx).Result()
 	if err != nil {
 		log.Fatalf("Failed to connect to Redis: %v", err)
 	}
@@ -52,8 +52,8 @@ func InitRedis() {
 
 // GetRedisClient returns the initialized Redis client
 func GetRedisClient() *redis.Client {
-	if rdb == nil {
+	if redisClient == nil {
 		log.Fatal("Redis client not initialized. Call InitRedis() first.")
 	}
-	return rdb
+	return redisClient
 }

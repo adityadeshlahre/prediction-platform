@@ -27,7 +27,7 @@ func InitSymbolRoutes(e *echo.Echo, client *redis.Client) {
 // 	symbol := struct{}{}
 // 	msg := sharedRedis.CreateMessage("LIST_SYMBOLS", symbol)
 // 	msgBytes, _ := sharedRedis.MarshalMessage(msg)
-// 	err := serverToEngineClient.LPush(c.Request().Context(), "httptoengine", msgBytes).Err()
+// 	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 // 	if err != nil {
 // 		return c.String(500, "Failed to send message")
 // 	}

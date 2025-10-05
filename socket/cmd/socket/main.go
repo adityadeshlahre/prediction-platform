@@ -21,7 +21,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-var socketToEnginePubSubClient *redis.Client
+var socketOrderBookSubscriber *redis.Client
 
 type CSD struct {
 	Symbol      string
@@ -200,8 +200,8 @@ func main() {
 	sharedRedis.InitRedis()
 
 	http.HandleFunc("/ws", wsHandler)
-	socketToEnginePubSubClient = sharedRedis.GetRedisClient()
-	bookPubsub := socketToEnginePubSubClient.Subscribe(context.Background(), "BTCUSDT")
+	socketOrderBookSubscriber = sharedRedis.GetRedisClient()
+	bookPubsub := socketOrderBookSubscriber.Subscribe(context.Background(), "BTCUSDT")
 
 	go func() {
 		for msg := range bookPubsub.Channel() {
