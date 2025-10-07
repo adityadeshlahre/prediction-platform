@@ -174,6 +174,15 @@ type CancelOrderProps struct {
 	Price       float64 `json:"price"`
 }
 
+// OrderProps for placing orders
+type OrderProps struct {
+	UserId      string  `json:"userId"`
+	StockSymbol string  `json:"stockSymbol"`
+	Quantity    float64 `json:"quantity"`
+	Price       float64 `json:"price"`
+	StockType   string  `json:"stockType"` // "yes" | "no"
+}
+
 // Enhanced Market with status tracking
 type MarketStatus string
 
@@ -199,3 +208,44 @@ type EnhancedMarket struct {
 }
 
 type Markets map[string]EnhancedMarket
+
+type USDBalances map[string]USDBalance
+
+type USDBalance struct {
+	Balance float64 `json:"balance"`
+	Locked  float64 `json:"locked"`
+}
+
+type StockBalances map[string]UserStockBalance
+
+type UserStockBalance map[string]SymbolStockBalance
+
+type SymbolStockBalance struct {
+	Yes StockPosition `json:"yes"`
+	No  StockPosition `json:"no"`
+}
+
+type StockPosition struct {
+	Quantity float64 `json:"quantity"`
+	Locked   float64 `json:"locked"`
+}
+
+type YesNoOrderBook map[string]SymbolOrderBook
+
+type SymbolOrderBook struct {
+	Yes PriceOrderBook `json:"yes"`
+	No  PriceOrderBook `json:"no"`
+}
+
+type PriceOrderBook map[float64]PriceLevel
+
+type PriceLevel struct {
+	Total  float64                   `json:"total"`
+	Orders map[string]OrderBookEntry `json:"orders"`
+}
+
+type OrderBookEntry struct {
+	UserId   string  `json:"userId"`
+	Quantity float64 `json:"quantity"`
+	Type     string  `json:"type"` // "reverted" | "regular"
+}

@@ -23,12 +23,12 @@ var upgrader = websocket.Upgrader{
 
 var socketOrderBookSubscriber *redis.Client
 
-type CSD struct {
+type ClientSubscriptionData struct {
 	Symbol      string
 	Subscribers []*websocket.Conn
 }
 
-var subscriptionsMap = []CSD{}
+var subscriptionsMap = []ClientSubscriptionData{}
 
 type OrderBookMessage struct {
 	Event   string      `json:"event"`
@@ -137,7 +137,7 @@ func handleIncomingMessages(conn *websocket.Conn, msgType int, msg []byte) {
 	}
 
 	if method == "subscribe" {
-		var subscription *CSD
+		var subscription *ClientSubscriptionData
 		for i := range subscriptionsMap {
 			if subscriptionsMap[i].Symbol == symbol {
 				subscription = &subscriptionsMap[i]
@@ -146,7 +146,7 @@ func handleIncomingMessages(conn *websocket.Conn, msgType int, msg []byte) {
 		}
 
 		if subscription == nil {
-			newSub := CSD{
+			newSub := ClientSubscriptionData{
 				Symbol:      symbol,
 				Subscribers: []*websocket.Conn{},
 			}
@@ -180,15 +180,15 @@ func handleIncomingMessages(conn *websocket.Conn, msgType int, msg []byte) {
 func handleConnectionClosed(conn *websocket.Conn) {
 	fmt.Println("Client disconnected")
 	// Remove connection from all subscriptions
-	for i, csd := range subscriptionsMap {
-		for j, c := range csd.Subscribers {
+	for i, clientsubscriptiondata := range subscriptionsMap {
+		for j, c := range clientsubscriptiondata.Subscribers {
 			if c == conn {
 				// Remove connection
 				subscriptionsMap[i].Subscribers = append(subscriptionsMap[i].Subscribers[:j], subscriptionsMap[i].Subscribers[j+1:]...)
 				break
 			}
 		}
-		// If no connections left for this symbol, remove the CSD entry
+		// If no connections left for this symbol, remove the ClientSubscriptionData entry
 		// TODO: stop subscription if no subscribers
 		// if len(subscriptions[i].Subscribers) == 0 {
 		// 	stopRedisSubscription(symbol)

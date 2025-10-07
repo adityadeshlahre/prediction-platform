@@ -10,10 +10,10 @@ tasks:
   build:
     desc: build the project
     cmds:
-      - cd database && go build ./cmd/database
-      - cd engine && go build ./cmd/engine
-      - cd server && go build ./cmd/server
-      - cd socket && go build ./cmd/socket
+      - cd database && go build -o database-service ./cmd/database
+      - cd engine && go build -o engine-service ./cmd/engine
+      - cd server && go build -o server-service ./cmd/server
+      - cd socket && go build -o socket-service ./cmd/socket
 
   run:
     desc: run all applications

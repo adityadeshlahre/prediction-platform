@@ -6,7 +6,6 @@ import (
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	types "github.com/adityadeshlahre/probo-v1/shared/types"
 	"github.com/labstack/echo/v4"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -29,49 +28,63 @@ func orderRoutes() {
 }
 
 func placeBuyOrder(c echo.Context) error {
-	id, err := gonanoid.New()
-	if err != nil {
-		return c.String(500, "Failed to generate order ID")
+	var orderProps types.OrderProps
+	if err := c.Bind(&orderProps); err != nil {
+		return c.JSON(400, map[string]string{"error": "Invalid order data"})
 	}
-	order := types.Order{Id: id, OrderType: "BUY"}
-	data, _ := json.Marshal(order)
+
+	data, _ := json.Marshal(orderProps)
 	msg := types.IncomingMessage{
-		Type: "ORDER",
+		Type: "BUY_ORDER",
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err = serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
-		return c.String(500, "Failed to send message")
+		return c.JSON(500, map[string]string{"error": "Failed to send message"})
 	}
+
 	// Await response
 	ch := make(chan string, 1)
-	sharedRedis.ServerAwaitsForResponseMap[id] = ch
-	<-ch
-	return c.String(200, "Buy order placed")
+	sharedRedis.ServerAwaitsForResponseMap[orderProps.UserId] = ch
+	response := <-ch
+
+	var resp types.IncomingMessage
+	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == "BUY_ORDER" {
+		return c.JSON(200, resp.Data)
+	}
+
+	return c.JSON(500, map[string]string{"error": "Failed to place buy order"})
 }
 
 func placeSellOrder(c echo.Context) error {
-	id, err := gonanoid.New()
-	if err != nil {
-		return c.String(500, "Failed to generate order ID")
+	var orderProps types.OrderProps
+	if err := c.Bind(&orderProps); err != nil {
+		return c.JSON(400, map[string]string{"error": "Invalid order data"})
 	}
-	order := types.Order{Id: id, OrderType: "SELL"}
-	data, _ := json.Marshal(order)
+
+	data, _ := json.Marshal(orderProps)
 	msg := types.IncomingMessage{
-		Type: "ORDER",
+		Type: "SELL_ORDER",
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err = serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
 	if err != nil {
-		return c.String(500, "Failed to send message")
+		return c.JSON(500, map[string]string{"error": "Failed to send message"})
 	}
+
 	// Await response
 	ch := make(chan string, 1)
-	sharedRedis.ServerAwaitsForResponseMap[id] = ch
-	<-ch
-	return c.String(200, "Sell order placed")
+	sharedRedis.ServerAwaitsForResponseMap[orderProps.UserId] = ch
+	response := <-ch
+
+	var resp types.IncomingMessage
+	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == "SELL_ORDER" {
+		return c.JSON(200, resp.Data)
+	}
+
+	return c.JSON(500, map[string]string{"error": "Failed to place sell order"})
 }
 
 func cancelOrder(c echo.Context) error {
