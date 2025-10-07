@@ -34,11 +34,11 @@ func getBalance(c echo.Context) error {
 	balance := types.Balance{}
 	data, _ := json.Marshal(balance)
 	msg := types.IncomingMessage{
-		Type: "GET_BALANCE",
+		Type: types.GET_BALANCE,
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}
@@ -53,11 +53,11 @@ func getStocks(c echo.Context) error {
 	balance := types.Balance{}
 	data, _ := json.Marshal(balance)
 	msg := types.IncomingMessage{
-		Type: "GET_STOCKS",
+		Type: string(types.GET_STOCKS),
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}

@@ -30,7 +30,7 @@ func main() {
 	sharedRedis.InitRedis()
 	databaseFromEngineQueueClient = sharedRedis.GetRedisClient()
 	databaseResponsePublisher = sharedRedis.GetRedisClient()
-	databaseResponsePubsub := databaseResponsePublisher.Subscribe(context.Background(), "DB_RESPONSES")
+	databaseResponsePubsub := databaseResponsePublisher.Subscribe(context.Background(), types.DB_RESPONSES)
 
 	go func() {
 		for msg := range databaseResponsePubsub.Channel() {
@@ -39,7 +39,7 @@ func main() {
 	}()
 	ctx := context.Background()
 	for {
-		res, err := databaseFromEngineQueueClient.BRPop(ctx, 0, "DB_ACTIONS").Result()
+		res, err := databaseFromEngineQueueClient.BRPop(ctx, 0, types.DB_ACTIONS).Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue
@@ -47,7 +47,7 @@ func main() {
 		message := []byte(res[1])
 		err = handleIncomingMessages(message)
 		if err == nil {
-			databaseResponsePublisher.Publish(context.Background(), "ENGINE_RESPONSES", message).Err()
+			databaseResponsePublisher.Publish(context.Background(), types.ENGINE_RESPONSES, message).Err()
 		}
 		if err != nil {
 			log.Println("Error handling message:", err)
@@ -62,42 +62,42 @@ func handleIncomingMessages(message []byte) error {
 		return err
 	}
 	switch msg.Type {
-	case "ORDER":
+	case types.ORDER:
 		var order types.Order
 		err = json.Unmarshal(msg.Data, &order)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateOrder(order)
-	case "MARKET":
+	case types.MARKET:
 		var market types.Market
 		err = json.Unmarshal(msg.Data, &market)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateMarket(market)
-	case "USER":
+	case types.USER:
 		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateUser(user)
-	case "BALANCE":
+	case types.BALANCE:
 		var balance types.Balance
 		err = json.Unmarshal(msg.Data, &balance)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateBalance(balance)
-	case "STOCK":
+	case types.STOCK:
 		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
 			return err
 		}
 		return createOrUpdateUserStock(user)
-	case "TRANSECTION":
+	case types.TRANSECTION:
 		var transection types.Transection
 		err = json.Unmarshal(msg.Data, &transection)
 		if err != nil {

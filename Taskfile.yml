@@ -25,8 +25,22 @@ tasks:
 
   dev:
     desc: run all applications with live reload
+    deps: [database, engine, server, socket]
+    run: once
+    parallel: true
+
+  database:
     cmds:
-      - cd database && air -c .air.toml &
-      - cd engine && air -c .air.toml &
-      - cd server && air -c .air.toml &
-      - cd socket && air -c .air.toml &
+      - cd database && air -c .air.toml
+
+  engine:
+    cmds:
+      - cd engine && air -c .air.toml
+
+  server:
+    cmds:
+      - cd server && air -c .air.toml
+
+  socket:
+    cmds:
+      - cd socket && air -c .air.toml

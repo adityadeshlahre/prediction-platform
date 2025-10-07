@@ -124,7 +124,7 @@ func createMarket(c echo.Context) error {
 					}
 					msgBytes, _ := json.Marshal(msg)
 
-					err = serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+					err = serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 					if err != nil {
 						fmt.Printf("Error sending create market message: %v\n", err)
 						continue
@@ -174,7 +174,7 @@ func createMarket(c echo.Context) error {
 						}
 						msgBytes, _ := json.Marshal(msg)
 
-						serverToEngineClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+						serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 					}(marketId, stockUniqueSymbol, couldBePrice)
 				}
 			}()

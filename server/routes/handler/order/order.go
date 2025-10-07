@@ -35,11 +35,11 @@ func placeBuyOrder(c echo.Context) error {
 
 	data, _ := json.Marshal(orderProps)
 	msg := types.IncomingMessage{
-		Type: "BUY_ORDER",
+		Type: string(types.BUY_ORDER),
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 	if err != nil {
 		return c.JSON(500, map[string]string{"error": "Failed to send message"})
 	}
@@ -50,7 +50,7 @@ func placeBuyOrder(c echo.Context) error {
 	response := <-ch
 
 	var resp types.IncomingMessage
-	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == "BUY_ORDER" {
+	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == string(types.BUY_ORDER) {
 		return c.JSON(200, resp.Data)
 	}
 
@@ -65,11 +65,11 @@ func placeSellOrder(c echo.Context) error {
 
 	data, _ := json.Marshal(orderProps)
 	msg := types.IncomingMessage{
-		Type: "SELL_ORDER",
+		Type: string(types.SELL_ORDER),
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 	if err != nil {
 		return c.JSON(500, map[string]string{"error": "Failed to send message"})
 	}
@@ -80,7 +80,7 @@ func placeSellOrder(c echo.Context) error {
 	response := <-ch
 
 	var resp types.IncomingMessage
-	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == "SELL_ORDER" {
+	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == string(types.SELL_ORDER) {
 		return c.JSON(200, resp.Data)
 	}
 
@@ -96,11 +96,11 @@ func cancelOrder(c echo.Context) error {
 	}
 	data, _ := json.Marshal(req)
 	msg := types.IncomingMessage{
-		Type: "CANCEL_ORDER",
+		Type: types.CANCEL_ORDER,
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}

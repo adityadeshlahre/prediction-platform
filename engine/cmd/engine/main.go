@@ -63,7 +63,7 @@ func main() {
 	database.SetDataStructures(&Orders, &Users, &Balances, &Transections, &Markets, &transectionCounter)
 
 	databaseActionsClient := sharedRedis.GetRedisClient()
-	databasePubsub := databaseActionsClient.Subscribe(context.Background(), "DB_ACTIONS")
+	databasePubsub := databaseActionsClient.Subscribe(context.Background(), types.DB_ACTIONS)
 
 	go func() {
 		for msg := range databasePubsub.Channel() {
@@ -72,7 +72,7 @@ func main() {
 	}()
 
 	engineResponseSubscriber = sharedRedis.GetRedisClient()
-	engineResponsePubsub := engineResponseSubscriber.Subscribe(context.Background(), "ENGINE_RESPONSES")
+	engineResponsePubsub := engineResponseSubscriber.Subscribe(context.Background(), types.ENGINE_RESPONSES)
 
 	go func() {
 		for msg := range engineResponsePubsub.Channel() {
@@ -80,27 +80,27 @@ func main() {
 			if err := json.Unmarshal([]byte(msg.Payload), &resp); err == nil {
 				var key string
 				switch resp.Type {
-				case "USER":
+				case types.USER:
 					var user types.User
 					if err := json.Unmarshal(resp.Data, &user); err == nil {
 						key = user.Id
 					}
-				case "BALANCE":
+				case types.BALANCE:
 					var balance types.Balance
 					if err := json.Unmarshal(resp.Data, &balance); err == nil {
 						key = balance.Id
 					}
-				case "ORDER":
+				case types.ORDER:
 					var order types.Order
 					if err := json.Unmarshal(resp.Data, &order); err == nil {
 						key = order.Id
 					}
-				case "MARKET":
+				case types.MARKET:
 					var market types.Market
 					if err := json.Unmarshal(resp.Data, &market); err == nil {
 						key = market.Id
 					}
-				case "TRANSECTION":
+				case types.TRANSECTION:
 					var transection types.Transection
 					if err := json.Unmarshal(resp.Data, &transection); err == nil {
 						key = transection.Id
@@ -124,7 +124,7 @@ func main() {
 
 	ctx := context.Background()
 	for {
-		res, err := engineFromServerQueueClient.BRPop(ctx, 0, "HTTP_TO_ENGINE").Result()
+		res, err := engineFromServerQueueClient.BRPop(ctx, 0, types.HTTP_TO_ENGINE).Result()
 		if err != nil {
 			log.Println("Error popping from queue:", err)
 			continue
@@ -145,7 +145,7 @@ func handleIncomingMessages(message []byte) error {
 	}
 
 	switch msg.Type {
-	case "ORDER":
+	case types.ORDER:
 		var order types.Order
 		err = json.Unmarshal(msg.Data, &order)
 		if err != nil {
@@ -155,7 +155,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		return nil
 
 	case string(types.ONRAMP_USD):
@@ -174,10 +174,10 @@ func handleIncomingMessages(message []byte) error {
 			Data: json.RawMessage(fmt.Sprintf(`{"userId":"%s","amount":%f,"status":"success"}`, onRampReq.UserId, onRampReq.Amount)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.Publish(context.Background(), types.SERVER_RESPONSES, responseBytes).Err()
 		return nil
 
-	case "MARKET":
+	case types.MARKET:
 		var market types.Market
 		err = json.Unmarshal(msg.Data, &market)
 		if err != nil {
@@ -187,10 +187,10 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		return nil
 
-	case "USER":
+	case types.USER:
 		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
@@ -207,11 +207,11 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
+		engineToServerPubSubClient.Publish(context.Background(), types.SERVER_RESPONSES, message).Err()
 		return nil
 
-	case "BALANCE":
+	case types.BALANCE:
 		var balance types.Balance
 		err = json.Unmarshal(msg.Data, &balance)
 		if err != nil {
@@ -221,10 +221,10 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		return nil
 
-	case "STOCK":
+	case types.STOCK:
 		var user types.User
 		err = json.Unmarshal(msg.Data, &user)
 		if err != nil {
@@ -234,10 +234,10 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		return nil
 
-	case "TRANSECTION":
+	case types.TRANSECTION:
 		var transection types.Transection
 		err = json.Unmarshal(msg.Data, &transection)
 		if err != nil {
@@ -247,7 +247,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		return nil
 
 	case string(types.GET_ORDER_BOOK):

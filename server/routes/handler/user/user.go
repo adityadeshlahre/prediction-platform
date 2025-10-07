@@ -30,11 +30,11 @@ func createUser(c echo.Context) error {
 	user := types.User{Id: id}
 	data, _ := json.Marshal(user)
 	msg := types.IncomingMessage{
-		Type: "USER",
+		Type: types.USER,
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
-	err := serverToEngineQueueClient.LPush(c.Request().Context(), "HTTP_TO_ENGINE", msgBytes).Err()
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
 	if err != nil {
 		return c.String(500, "Failed to send message")
 	}

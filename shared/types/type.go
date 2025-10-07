@@ -9,6 +9,51 @@ type IncomingMessage struct {
 	Data json.RawMessage `json:"data"`
 }
 
+// incoming Outgoing message types
+
+const (
+	ORDER        = "ORDER"
+	MARKET       = "MARKET"
+	USER         = "USER"
+	BALANCE      = "BALANCE"
+	STOCK        = "STOCK"
+	TRANSECTION  = "TRANSECTION"
+	GET_BALANCE  = "GET_BALANCE"
+	CANCEL_ORDER = "CANCEL_ORDER"
+	UPDATE_ORDER = "UPDATE_ORDER"
+)
+
+// redis related constants
+
+const (
+	ENGINE_TO_SERVER_QUEUE = "ENGINE_TO_SERVER_QUEUE"
+	SERVER_TO_ENGINE_QUEUE = "SERVER_TO_ENGINE_QUEUE"
+	DATABASE_QUEUE         = "DATABASE_QUEUE"
+	SERVER_RESPONSES       = "SERVER_RESPONSES"
+	DB_ACTIONS             = "DB_ACTIONS"
+	HTTP_TO_ENGINE         = "HTTP_TO_ENGINE"
+	ENGINE_RESPONSES       = "ENGINE_RESPONSES"
+	DB_RESPONSES           = "DB_RESPONSES"
+)
+
+// action types
+
+const (
+	SELL_ORDER     = "SELL_ORDER"
+	BUY_ORDER      = "BUY_ORDER"
+	GET_USD        = "GET_USD"
+	GET_STOCKS     = "GET_STOCKS"
+	USER_USD       = "USER_USD"
+	USER_STOCKS    = "USER_STOCKS"
+	GET_ORDER_BOOK = "GET_ORDER_BOOK"
+	GET_MARKET     = "GET_MARKET"
+	CREATE_USER    = "CREATE_USER"
+	CREATE_MARKET  = "CREATE_MARKET"
+	ONRAMP_USD     = "ONRAMP_USD"
+	CANCLE_ORDER   = "CANCLE_ORDER"
+	END_MARKET     = "END_MARKET"
+)
+
 type Balance struct {
 	Id      string  `json:"id"`
 	UserId  string  `json:"userId"`
@@ -92,24 +137,6 @@ type Market struct {
 	CreatedAt         string `json:"createdAt"`
 	UpdatedAt         string `json:"updatedAt"`
 }
-
-type ActionType string
-
-const (
-	SELL_ORDER     ActionType = "SELL_ORDER"
-	BUY_ORDER      ActionType = "BUY_ORDER"
-	GET_USD        ActionType = "GET_USD"
-	GET_STOCKS     ActionType = "GET_STOCKS"
-	USER_USD       ActionType = "USER_USD"
-	USER_STOCKS    ActionType = "USER_STOCKS"
-	GET_ORDER_BOOK ActionType = "GET_ORDER_BOOK"
-	GET_MARKET     ActionType = "GET_MARKET"
-	CREATE_USER    ActionType = "CREATE_USER"
-	CREATE_MARKET  ActionType = "CREATE_MARKET"
-	ONRAMP_USD     ActionType = "ONRAMP_USD"
-	CANCLE_ORDER   ActionType = "CANCLE_ORDER"
-	END_MARKET     ActionType = "END_MARKET"
-)
 
 type marketType string
 

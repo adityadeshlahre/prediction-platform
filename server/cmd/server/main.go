@@ -26,7 +26,7 @@ func main() {
 	sharedRedis.InitRedis()
 	serverToEngineQueueClient = sharedRedis.GetRedisClient()
 	serverResponseSubscriber = sharedRedis.GetRedisClient()
-	responsePubsub := serverResponseSubscriber.Subscribe(ctx, "SERVER_RESPONSES")
+	responsePubsub := serverResponseSubscriber.Subscribe(ctx, types.SERVER_RESPONSES)
 
 	go func() {
 		for msg := range responsePubsub.Channel() {
