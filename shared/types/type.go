@@ -106,6 +106,8 @@ const (
 	GET_MARKET     ActionType = "GET_MARKET"
 	CREATE_USER    ActionType = "CREATE_USER"
 	CREATE_MARKET  ActionType = "CREATE_MARKET"
+	ONRAMP_USD     ActionType = "ONRAMP_USD"
+	CANCLE_ORDER   ActionType = "CANCLE_ORDER"
 	END_MARKET     ActionType = "END_MARKET"
 )
 
@@ -131,5 +133,69 @@ type CreateMarket struct {
 	EndAfterTime    int64  `json:"endAfterTime"`
 	Heading         string `json:"heading"`
 	EventType       string `json:"eventType"`
-	RepeatEventTime int64 `json:"repeatEventTime"`
+	RepeatEventTime int64  `json:"repeatEventTime"`
 }
+
+// OrderBook Types (equivalent to TypeScript interfaces)
+type OrderDetails struct {
+	UserId   string  `json:"userId"`
+	Quantity float64 `json:"quantity"`
+	Type     string  `json:"type"` // "reverted" | "regular"
+}
+
+type OrderBookOrders map[string]OrderDetails
+
+type OrderBookPerPrice struct {
+	Total  float64         `json:"total"`
+	Orders OrderBookOrders `json:"orders"`
+}
+
+type OrderBookPrices map[float64]OrderBookPerPrice
+
+type OrderBookPerStock struct {
+	Yes OrderBookPrices `json:"yes"`
+	No  OrderBookPrices `json:"no"`
+}
+
+type OrderBook map[string]OrderBookPerStock
+
+// OnRampProps for USD deposits
+type OnRampProps struct {
+	UserId string  `json:"userId"`
+	Amount float64 `json:"amount"`
+}
+
+// CancelOrderProps for order cancellation
+type CancelOrderProps struct {
+	UserId      string  `json:"userId"`
+	StockSymbol string  `json:"stockSymbol"`
+	OrderId     string  `json:"orderId"`
+	StockType   string  `json:"stockType"` // "yes" | "no"
+	Price       float64 `json:"price"`
+}
+
+// Enhanced Market with status tracking
+type MarketStatus string
+
+const (
+	MarketActive    MarketStatus = "Active"
+	MarketCompleted MarketStatus = "COMPLETED"
+)
+
+type MarketType string
+
+const (
+	MarketAutomatic MarketType = "automatic"
+	MarketManual    MarketType = "manual"
+)
+
+type EnhancedMarket struct {
+	StockSymbol string       `json:"stockSymbol"`
+	Price       float64      `json:"price"`
+	Heading     string       `json:"heading"`
+	EventType   string       `json:"eventType"`
+	Type        MarketType   `json:"type"`
+	Status      MarketStatus `json:"status"`
+}
+
+type Markets map[string]EnhancedMarket

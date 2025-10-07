@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	server "github.com/adityadeshlahre/probo-v1/engine/handler"
@@ -21,6 +22,7 @@ var Users []types.User
 var Balances []types.Balance
 var Transections []types.Transection
 var Markets []types.Market
+var OrderBook types.OrderBook = make(types.OrderBook)
 
 var engineToDatabaseQueueClient *redis.Client
 var engineFromServerQueueClient *redis.Client
@@ -45,6 +47,8 @@ func main() {
 		}
 	}()
 	engineToDatabaseQueueClient = sharedRedis.GetRedisClient()
+	engineFromServerQueueClient = sharedRedis.GetRedisClient()
+	engineToServerPubSubClient = sharedRedis.GetRedisClient()
 	// engineToSocketPubSubClient = sharedRedis.GetRedisClient()
 	databaseClient := sharedRedis.GetRedisClient()
 	databasePubsub := databaseClient.Subscribe(context.Background(), "DB_ACTIONS")
@@ -118,6 +122,24 @@ func handleIncomingMessages(message []byte) error {
 			return err
 		}
 		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		return nil
+	case string(types.ONRAMP_USD):
+		var onRampReq types.OnRampProps
+		err = json.Unmarshal(msg.Data, &onRampReq)
+		if err != nil {
+			return err
+		}
+		err = onRampUSD(onRampReq.UserId, onRampReq.Amount)
+		if err != nil {
+			return err
+		}
+		// Send success response
+		responseMsg := types.IncomingMessage{
+			Type: string(types.ONRAMP_USD),
+			Data: json.RawMessage(fmt.Sprintf(`{"userId":"%s","amount":%f,"status":"success"}`, onRampReq.UserId, onRampReq.Amount)),
+		}
+		responseBytes, _ := json.Marshal(responseMsg)
+		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
 		return nil
 	case "MARKET":
 		var market types.Market
@@ -205,9 +227,267 @@ func handleIncomingMessages(message []byte) error {
 		}
 		engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
 		return nil
+	case string(types.GET_ORDER_BOOK):
+		var req struct {
+			Symbol string `json:"symbol"`
+		}
+		err = json.Unmarshal(msg.Data, &req)
+		if err != nil {
+			return err
+		}
+		orderBook, err := getOrderBook(req.Symbol)
+		if err != nil {
+			return err
+		}
+		orderBookData, _ := json.Marshal(orderBook)
+		responseMsg := types.IncomingMessage{
+			Type: string(types.GET_ORDER_BOOK),
+			Data: orderBookData,
+		}
+		responseBytes, _ := json.Marshal(responseMsg)
+		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		return nil
+	case string(types.CANCLE_ORDER):
+		var cancelReq types.CancelOrderProps
+		err = json.Unmarshal(msg.Data, &cancelReq)
+		if err != nil {
+			return err
+		}
+		err = cancelOrder(cancelReq)
+		if err != nil {
+			return err
+		}
+		// Send success response
+		responseMsg := types.IncomingMessage{
+			Type: string(types.CANCLE_ORDER),
+			Data: json.RawMessage(fmt.Sprintf(`{"orderId":"%s","status":"cancelled"}`, cancelReq.OrderId)),
+		}
+		responseBytes, _ := json.Marshal(responseMsg)
+		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		return nil
+	case string(types.END_MARKET):
+		var endReq struct {
+			StockSymbol  string `json:"stockSymbol"`
+			MarketId     string `json:"marketId"`
+			WinningStock string `json:"winningStock"`
+		}
+		err = json.Unmarshal(msg.Data, &endReq)
+		if err != nil {
+			return err
+		}
+		err = endMarket(endReq.MarketId, endReq.StockSymbol, endReq.WinningStock)
+		if err != nil {
+			return err
+		}
+		// Send success response
+		responseMsg := types.IncomingMessage{
+			Type: string(types.END_MARKET),
+			Data: json.RawMessage(fmt.Sprintf(`{"marketId":"%s","status":"ended","winner":"%s"}`, endReq.MarketId, endReq.WinningStock)),
+		}
+		responseBytes, _ := json.Marshal(responseMsg)
+		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		return nil
 	default:
 		log.Println("Unknown message type:", msg.Type)
 	}
+	return nil
+}
+
+func onRampUSD(userId string, amount float64) error {
+	// Find or create balance for user
+	found := false
+	for i := range Balances {
+		if Balances[i].UserId == userId {
+			Balances[i].Balance += amount
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		// Create new balance if user doesn't have one
+		balanceId, err := gonanoid.New()
+		if err != nil {
+			return err
+		}
+		Balances = append(Balances, types.Balance{
+			Id:      balanceId,
+			UserId:  userId,
+			Balance: amount,
+			Locked:  0,
+		})
+	}
+
+	// Create transaction record
+	transectionId, err := gonanoid.New()
+	if err != nil {
+		return err
+	}
+
+	transection := types.Transection{
+		Id:              transectionId,
+		MakerId:         userId,
+		TakerId:         userId,
+		TransectionType: types.DEPOSIT,
+		Quantity:        amount,
+		Price:           10000, // USD deposit
+		Symbol:          "USD",
+		SymbolStockType: "USD",
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		UpdatedAt:       time.Now().Format(time.RFC3339),
+	}
+	Transections = append(Transections, transection)
+
+	return nil
+}
+
+func cancelOrder(cancelReq types.CancelOrderProps) error {
+	// Find the order
+	var orderToCancel *types.Order
+
+	for i, order := range Orders {
+		if order.Id == cancelReq.OrderId && order.UserId == cancelReq.UserId {
+			orderToCancel = &Orders[i]
+			break
+		}
+	}
+
+	if orderToCancel == nil {
+		return fmt.Errorf("order not found")
+	}
+
+	// Check if order can be cancelled (not completed)
+	if orderToCancel.Status == types.COMPLETED {
+		return fmt.Errorf("cannot cancel completed order")
+	}
+
+	// Remove from order book
+	err := removeFromOrderBook(cancelReq.OrderId, cancelReq.StockSymbol, cancelReq.StockType, cancelReq.Price)
+	if err != nil {
+		return err
+	}
+
+	// Update order status
+	orderToCancel.Status = types.CANCELLED
+	orderToCancel.UpdatedAt = time.Now().Format(time.RFC3339)
+
+	// Unlock balance if order was not filled
+	if orderToCancel.FilledQty == 0 {
+		// Find user balance and unlock the amount
+		for i := range Balances {
+			if Balances[i].UserId == cancelReq.UserId {
+				lockedAmount := orderToCancel.Quantity * orderToCancel.Price
+				Balances[i].Locked -= lockedAmount
+				Balances[i].Balance += lockedAmount
+				break
+			}
+		}
+	}
+
+	// Create cancellation transaction record
+	transectionId, err := gonanoid.New()
+	if err != nil {
+		return err
+	}
+
+	transection := types.Transection{
+		Id:              transectionId,
+		MakerId:         cancelReq.UserId,
+		TakerId:         cancelReq.UserId,
+		TransectionType: types.CANCLE,
+		Quantity:        orderToCancel.Quantity - orderToCancel.FilledQty, // Cancel unfilled quantity
+		Price:           orderToCancel.Price,
+		Symbol:          cancelReq.StockSymbol,
+		SymbolStockType: cancelReq.StockType,
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		UpdatedAt:       time.Now().Format(time.RFC3339),
+	}
+	Transections = append(Transections, transection)
+
+	return nil
+}
+
+func endMarket(marketId string, stockSymbol string, winningStock string) error {
+	// Find the market
+	var marketToEnd *types.Market
+
+	for i, market := range Markets {
+		if market.Id == marketId {
+			marketToEnd = &Markets[i]
+			break
+		}
+	}
+
+	if marketToEnd == nil {
+		return fmt.Errorf("market not found")
+	}
+
+	// Update market status (we'll need to enhance the Market struct for this)
+	// For now, we'll mark it as completed by updating the EndEventAfterTime
+	marketToEnd.EndEventAfterTime = time.Now().Format(time.RFC3339)
+	marketToEnd.UpdatedAt = time.Now().Format(time.RFC3339)
+
+	// Process settlements based on winning stock
+	// This is a simplified version - in a real system, you'd settle all outstanding orders
+	winningStockLower := strings.ToLower(winningStock)
+
+	// Find all orders for this symbol and settle them
+	for i := range Orders {
+		if Orders[i].Symbol == stockSymbol && Orders[i].Status == types.PENDING {
+			// Determine if this order wins
+			orderStockType := strings.ToLower(string(Orders[i].SymbolStockType))
+			if orderStockType == winningStockLower {
+				// Winning order - mark as completed and credit balance
+				Orders[i].Status = types.COMPLETED
+				Orders[i].FilledQty = Orders[i].Quantity
+				Orders[i].UpdatedAt = time.Now().Format(time.RFC3339)
+
+				// Credit the winner
+				for j := range Balances {
+					if Balances[j].UserId == Orders[i].UserId {
+						// Winner gets their stake back plus profit
+						// Simplified: just unlock the balance
+						Balances[j].Locked -= Orders[i].Quantity * Orders[i].Price
+						break
+					}
+				}
+			} else {
+				// Losing order - mark as completed, no payout
+				Orders[i].Status = types.COMPLETED
+				Orders[i].FilledQty = Orders[i].Quantity
+				Orders[i].UpdatedAt = time.Now().Format(time.RFC3339)
+
+				// Unlock balance (money is lost)
+				for j := range Balances {
+					if Balances[j].UserId == Orders[i].UserId {
+						Balances[j].Locked -= Orders[i].Quantity * Orders[i].Price
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Create market end transaction record
+	transectionId, err := gonanoid.New()
+	if err != nil {
+		return err
+	}
+
+	transection := types.Transection{
+		Id:              transectionId,
+		MakerId:         "SYSTEM",
+		TakerId:         "SYSTEM",
+		TransectionType: types.CANCLE, // Using CANCLE as market settlement
+		Quantity:        1,
+		Price:           0,
+		Symbol:          stockSymbol,
+		SymbolStockType: winningStock,
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		UpdatedAt:       time.Now().Format(time.RFC3339),
+	}
+	Transections = append(Transections, transection)
+
 	return nil
 }
 
@@ -241,12 +521,21 @@ func createOrUpdateOrder(data types.Order) error {
 				Orders[i].Status = data.Status
 			}
 			Orders[i].UpdatedAt = time.Now().Format(time.RFC3339)
+
+			// Update order book if order was filled
+			if data.FilledQty > 0 {
+				updateOrderBookAfterFill(data.Id, data.FilledQty, data.Symbol, string(data.SymbolStockType), data.Price)
+			}
 			return nil
 		}
 	}
 	data.CreatedAt = time.Now().Format(time.RFC3339)
 	data.UpdatedAt = data.CreatedAt
 	Orders = append(Orders, data)
+
+	// Add new order to order book
+	addToOrderBook(data)
+
 	return nil
 }
 
@@ -296,5 +585,144 @@ func createOrUpdateMarket(data types.Market) error {
 	data.CreatedAt = time.Now().Format(time.RFC3339)
 	data.UpdatedAt = data.CreatedAt
 	Markets = append(Markets, data)
+	return nil
+}
+
+// Order Book Management Functions
+func addToOrderBook(order types.Order) error {
+	symbol := order.Symbol
+	stockType := strings.ToLower(string(order.SymbolStockType))
+
+	// Initialize order book for symbol if it doesn't exist
+	if _, exists := OrderBook[symbol]; !exists {
+		OrderBook[symbol] = types.OrderBookPerStock{
+			Yes: make(types.OrderBookPrices),
+			No:  make(types.OrderBookPrices),
+		}
+	}
+
+	// Get the appropriate price map (yes/no)
+	var priceMap types.OrderBookPrices
+	if stockType == "yes" {
+		priceMap = OrderBook[symbol].Yes
+	} else {
+		priceMap = OrderBook[symbol].No
+	}
+
+	// Initialize price level if it doesn't exist
+	if _, exists := priceMap[order.Price]; !exists {
+		priceMap[order.Price] = types.OrderBookPerPrice{
+			Total:  0,
+			Orders: make(types.OrderBookOrders),
+		}
+	}
+
+	// Add or update order
+	priceLevel := priceMap[order.Price]
+	priceLevel.Orders[order.Id] = types.OrderDetails{
+		UserId:   order.UserId,
+		Quantity: order.Quantity,
+		Type:     "regular",
+	}
+
+	// Update total quantity for this price level
+	total := 0.0
+	for _, orderDetail := range priceLevel.Orders {
+		total += orderDetail.Quantity
+	}
+	priceLevel.Total = total
+	priceMap[order.Price] = priceLevel
+
+	return nil
+}
+
+func removeFromOrderBook(orderId string, symbol string, stockType string, price float64) error {
+	stockType = strings.ToLower(stockType)
+
+	if _, exists := OrderBook[symbol]; !exists {
+		return fmt.Errorf("symbol not found in order book")
+	}
+
+	var priceMap types.OrderBookPrices
+	if stockType == "yes" {
+		priceMap = OrderBook[symbol].Yes
+	} else {
+		priceMap = OrderBook[symbol].No
+	}
+
+	if _, exists := priceMap[price]; !exists {
+		return fmt.Errorf("price level not found in order book")
+	}
+
+	// Remove the order
+	priceLevel := priceMap[price]
+	delete(priceLevel.Orders, orderId)
+
+	// Update total quantity
+	total := 0.0
+	for _, orderDetail := range priceLevel.Orders {
+		total += orderDetail.Quantity
+	}
+	priceLevel.Total = total
+	priceMap[price] = priceLevel
+
+	// Remove price level if no orders left
+	if len(priceLevel.Orders) == 0 {
+		delete(priceMap, price)
+	}
+
+	return nil
+}
+
+func getOrderBook(symbol string) (types.OrderBookPerStock, error) {
+	if orderBook, exists := OrderBook[symbol]; exists {
+		return orderBook, nil
+	}
+	return types.OrderBookPerStock{
+		Yes: make(types.OrderBookPrices),
+		No:  make(types.OrderBookPrices),
+	}, nil
+}
+
+func updateOrderBookAfterFill(orderId string, filledQty float64, symbol string, stockType string, price float64) error {
+	stockType = strings.ToLower(stockType)
+
+	if _, exists := OrderBook[symbol]; !exists {
+		return fmt.Errorf("order book entry not found")
+	}
+
+	var priceMap types.OrderBookPrices
+	if stockType == "yes" {
+		priceMap = OrderBook[symbol].Yes
+	} else {
+		priceMap = OrderBook[symbol].No
+	}
+
+	if _, exists := priceMap[price]; !exists {
+		return fmt.Errorf("price level not found")
+	}
+
+	priceLevel := priceMap[price]
+	if orderDetail, exists := priceLevel.Orders[orderId]; exists {
+		// Reduce quantity
+		orderDetail.Quantity -= filledQty
+		priceLevel.Orders[orderId] = orderDetail
+
+		// Update total
+		priceLevel.Total -= filledQty
+		priceMap[price] = priceLevel
+
+		// Remove order if fully filled
+		if orderDetail.Quantity <= 0 {
+			delete(priceLevel.Orders, orderId)
+			priceMap[price] = priceLevel
+		}
+
+		// Remove price level if no orders left
+		if len(priceLevel.Orders) == 0 {
+			delete(priceMap, price)
+		}
+	}
+
 	return nil
 }
