@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
-	"github.com/adityadeshlahre/probo-v1/shared/types"
+	types "github.com/adityadeshlahre/probo-v1/shared/types"
 	"github.com/labstack/echo/v4"
 	"github.com/redis/go-redis/v9"
 )

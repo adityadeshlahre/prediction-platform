@@ -1,6 +1,8 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type IncomingMessage struct {
 	Type string          `json:"type"`
@@ -89,4 +91,45 @@ type Market struct {
 	EndEventAfterTime string `json:"endEventAfterTime"`
 	CreatedAt         string `json:"createdAt"`
 	UpdatedAt         string `json:"updatedAt"`
+}
+
+type ActionType string
+
+const (
+	SELL_ORDER     ActionType = "SELL_ORDER"
+	BUY_ORDER      ActionType = "BUY_ORDER"
+	GET_USD        ActionType = "GET_USD"
+	GET_STOCKS     ActionType = "GET_STOCKS"
+	USER_USD       ActionType = "USER_USD"
+	USER_STOCKS    ActionType = "USER_STOCKS"
+	GET_ORDER_BOOK ActionType = "GET_ORDER_BOOK"
+	GET_MARKET     ActionType = "GET_MARKET"
+	CREATE_USER    ActionType = "CREATE_USER"
+	CREATE_MARKET  ActionType = "CREATE_MARKET"
+	END_MARKET     ActionType = "END_MARKET"
+)
+
+type marketType string
+
+const (
+	AUTOMATIC marketType = "AUTOMATIC"
+	MANUAL    marketType = "MANUAL"
+)
+
+type sourceOfTruth string
+
+const (
+	AUTOMATIC_TRIGGERS sourceOfTruth = "AUTOMATIC_TRIGGERS"
+	MANUAL_TRIGGERS    sourceOfTruth = "MANUAL_TRIGGERS"
+)
+
+type CreateMarket struct {
+	Symbol          string `json:"symbol"`
+	MarketType      string `json:"marketType"`
+	EndsIn          int64  `json:"endsIn"`
+	SourceOfTruth   string `json:"sourceOfTruth"`
+	EndAfterTime    int64  `json:"endAfterTime"`
+	Heading         string `json:"heading"`
+	EventType       string `json:"eventType"`
+	RepeatEventTime int64 `json:"repeatEventTime"`
 }

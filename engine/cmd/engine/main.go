@@ -9,7 +9,7 @@ import (
 
 	server "github.com/adityadeshlahre/probo-v1/engine/handler"
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
-	"github.com/adityadeshlahre/probo-v1/shared/types"
+	types "github.com/adityadeshlahre/probo-v1/shared/types"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/redis/go-redis/v9"
 )
@@ -25,11 +25,16 @@ var Markets []types.Market
 var engineToDatabaseQueueClient *redis.Client
 var engineFromServerQueueClient *redis.Client
 
-var engineToDatabasePubSubClient *redis.Client
+// var engineToDatabasePubSubClient *redis.Client
 var engineToServerPubSubClient *redis.Client
-var engineToSocketPubSubClient *redis.Client
 
-var transectionCounter int = 1
+// var engineToSocketPubSubClient *redis.Client
+
+var engineResponseSubscriber *redis.Client
+
+var transectionCounter int = 0
+
+var EngineAwaitsForResponseMap = make(map[string]chan string)
 
 func main() {
 	sharedRedis.InitRedis()
@@ -40,13 +45,44 @@ func main() {
 		}
 	}()
 	engineToDatabaseQueueClient = sharedRedis.GetRedisClient()
-	engineToSocketPubSubClient = sharedRedis.GetRedisClient()
+	// engineToSocketPubSubClient = sharedRedis.GetRedisClient()
 	databaseClient := sharedRedis.GetRedisClient()
 	databasePubsub := databaseClient.Subscribe(context.Background(), "DB_ACTIONS")
 
 	go func() {
 		for msg := range databasePubsub.Channel() {
 			println("Received message in engine:", msg.Payload)
+		}
+	}()
+
+	engineResponseSubscriber = sharedRedis.GetRedisClient()
+	engineResponsePubsub := engineResponseSubscriber.Subscribe(context.Background(), "ENGINE_RESPONSES")
+
+	go func() {
+		for msg := range engineResponsePubsub.Channel() {
+			var resp types.IncomingMessage
+			if err := json.Unmarshal([]byte(msg.Payload), &resp); err == nil {
+				var key string
+				switch resp.Type {
+				case "USER":
+					var user types.User
+					if err := json.Unmarshal(resp.Data, &user); err == nil {
+						key = user.Id
+					}
+				case "BALANCE":
+					var balance types.Balance
+					if err := json.Unmarshal(resp.Data, &balance); err == nil {
+						key = balance.Id
+					}
+				}
+				if key != "" {
+					if ch, ok := EngineAwaitsForResponseMap[key]; ok {
+						ch <- msg.Payload
+						delete(EngineAwaitsForResponseMap, key)
+					}
+				}
+			}
+			println("Received response in engine:", msg.Payload)
 		}
 	}()
 	ctx := context.Background()
@@ -105,12 +141,32 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
+
+		err = sendMessageToDatabaseQueueAndAwaitForResponseViaPubSubClient(message, user.Id)
+		if err != nil {
+			return err
+		}
+
 		balanceId, err := gonanoid.New()
 		if err != nil {
 			return err
 		}
-		go createOrUpdateBalance(types.Balance{Id: balanceId, UserId: user.Id, Balance: 1000, Locked: 0})
-		go engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+		balance := types.Balance{Id: balanceId, UserId: user.Id, Balance: 1000, Locked: 0}
+		go createOrUpdateBalance(balance)
+
+		balanceData, err := json.Marshal(balance)
+		if err != nil {
+			return err
+		}
+		balanceMsg := types.IncomingMessage{
+			Type: "BALANCE",
+			Data: balanceData,
+		}
+		balanceMsgBytes, err := json.Marshal(balanceMsg)
+		if err != nil {
+			return err
+		}
+		go engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", balanceMsgBytes).Err()
 		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", message).Err()
 		return nil
 	case "BALANCE":
@@ -152,6 +208,19 @@ func handleIncomingMessages(message []byte) error {
 	default:
 		log.Println("Unknown message type:", msg.Type)
 	}
+	return nil
+}
+
+func sendMessageToDatabaseQueueAndAwaitForResponseViaPubSubClient(message []byte, key string) error {
+	err := engineToDatabaseQueueClient.Publish(context.Background(), "DB_ACTIONS", message).Err()
+	if err != nil {
+		return err
+	}
+
+	ch := make(chan string, 1)
+	EngineAwaitsForResponseMap[key] = ch
+
+	<-ch
 	return nil
 }
 

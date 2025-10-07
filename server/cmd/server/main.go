@@ -8,7 +8,7 @@ import (
 	"github.com/adityadeshlahre/probo-v1/server/routes/handler/user"
 	"github.com/adityadeshlahre/probo-v1/server/server"
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
-	"github.com/adityadeshlahre/probo-v1/shared/types"
+	types "github.com/adityadeshlahre/probo-v1/shared/types"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )

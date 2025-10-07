@@ -42,3 +42,8 @@
 - Multi-module Go project with shared types
 - Services: database, engine, server, socket, shared
 - Use local replace directives for shared modules
+
+## Development Guidelines
+- HTTP Server → Engine: via Redis Queue + Pub/Sub
+- Engine → Database Server: via Redis Queue + Pub/Sub
+- Engine → WebSocket Server: via Redis Pub/Sub (for broadcasting updates)
