@@ -8,11 +8,11 @@ import (
 
 	"github.com/adityadeshlahre/probo-v1/engine/balance"
 	"github.com/adityadeshlahre/probo-v1/engine/database"
+	server "github.com/adityadeshlahre/probo-v1/engine/handler"
 	"github.com/adityadeshlahre/probo-v1/engine/market"
 	"github.com/adityadeshlahre/probo-v1/engine/orderbook"
-	server "github.com/adityadeshlahre/probo-v1/engine/handler"
-	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	"github.com/adityadeshlahre/probo-v1/engine/trading"
+	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	types "github.com/adityadeshlahre/probo-v1/shared/types"
 	"github.com/redis/go-redis/v9"
 )
@@ -62,8 +62,8 @@ func main() {
 	orderbook.SetDataStructures(OrderBook)
 	database.SetDataStructures(&Orders, &Users, &Balances, &Transections, &Markets, &transectionCounter)
 
-	databaseClient := sharedRedis.GetRedisClient()
-	databasePubsub := databaseClient.Subscribe(context.Background(), "DB_ACTIONS")
+	databaseActionsClient := sharedRedis.GetRedisClient()
+	databasePubsub := databaseActionsClient.Subscribe(context.Background(), "DB_ACTIONS")
 
 	go func() {
 		for msg := range databasePubsub.Channel() {
