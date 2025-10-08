@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 
+	"time"
+
 	"github.com/adityadeshlahre/probo-v1/engine/balance"
 	"github.com/adityadeshlahre/probo-v1/engine/database"
 	server "github.com/adityadeshlahre/probo-v1/engine/handler"
@@ -14,6 +16,7 @@ import (
 	"github.com/adityadeshlahre/probo-v1/engine/trading"
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	types "github.com/adityadeshlahre/probo-v1/shared/types"
+	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -35,6 +38,96 @@ var engineResponseSubscriber *redis.Client
 
 var transectionCounter int = 0
 var EngineAwaitsForResponseMap = make(map[string]chan string)
+
+func addMarketMaker(symbol string) {
+	// Add market maker
+	USDBalances["marketmaker"] = types.USDBalance{Balance: 10000, Locked: 0}
+	if _, exists := StockBalances["marketmaker"]; !exists {
+		StockBalances["marketmaker"] = make(types.UserStockBalance)
+	}
+	StockBalances["marketmaker"][symbol] = types.SymbolStockBalance{
+		Yes: types.StockPosition{Quantity: 1000, Locked: 0},
+		No:  types.StockPosition{Quantity: 1000, Locked: 0},
+	}
+	// Send marketmaker to database
+	marketmakerUser := types.User{Id: "marketmaker"}
+	userData, _ := json.Marshal(marketmakerUser)
+	userMsg := types.IncomingMessage{Type: types.USER, Data: userData}
+	userBytes, _ := json.Marshal(userMsg)
+	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, userBytes)
+
+	balanceData := types.Balance{Id: "marketmaker", UserId: "marketmaker", Balance: 10000, Locked: 0}
+	balanceBytes, _ := json.Marshal(balanceData)
+	balanceMsg := types.IncomingMessage{Type: types.BALANCE, Data: balanceBytes}
+	balanceMsgBytes, _ := json.Marshal(balanceMsg)
+	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, balanceMsgBytes)
+
+	stockData := types.User{Id: "marketmaker", Stock: json.RawMessage(fmt.Sprintf(`{"%s":{"yes":{"quantity":1000,"locked":0},"no":{"quantity":1000,"locked":0}}}`, symbol))}
+	stockBytes, _ := json.Marshal(stockData)
+	stockMsg := types.IncomingMessage{Type: types.STOCK, Data: stockBytes}
+	stockMsgBytes, _ := json.Marshal(stockMsg)
+	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, stockMsgBytes)
+
+	// Add market maker orders
+	orderId1, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
+	order1 := types.Order{
+		Id:              orderId1,
+		UserId:          "marketmaker",
+		OrderType:       types.SELL,
+		Symbol:          symbol,
+		SymbolStockType: "yes",
+		Price:           6.0,
+		Quantity:        100,
+		FilledQty:       0,
+		Status:          types.PENDING,
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		UpdatedAt:       time.Now().Format(time.RFC3339),
+	}
+	orderData1, _ := json.Marshal(order1)
+	orderMsg1 := types.IncomingMessage{Type: "ORDER", Data: orderData1}
+	orderMsgBytes1, _ := json.Marshal(orderMsg1)
+	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, orderMsgBytes1)
+
+	orderId2, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
+	order2 := types.Order{
+		Id:              orderId2,
+		UserId:          "marketmaker",
+		OrderType:       types.BUY,
+		Symbol:          symbol,
+		SymbolStockType: "no",
+		Price:           4.0,
+		Quantity:        100,
+		FilledQty:       0,
+		Status:          types.PENDING,
+		CreatedAt:       time.Now().Format(time.RFC3339),
+		UpdatedAt:       time.Now().Format(time.RFC3339),
+	}
+	orderData2, _ := json.Marshal(order2)
+	orderMsg2 := types.IncomingMessage{Type: "ORDER", Data: orderData2}
+	orderMsgBytes2, _ := json.Marshal(orderMsg2)
+	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, orderMsgBytes2)
+
+	// Update order book
+	priceMap := OrderBook[symbol].Yes
+	if _, exists := priceMap[6.0]; !exists {
+		priceMap[6.0] = types.PriceLevel{Total: 0, Orders: make(map[string]types.OrderBookEntry)}
+	}
+	priceLevel := priceMap[6.0]
+	priceLevel.Total += 100
+	priceLevel.Orders[orderId1] = types.OrderBookEntry{UserId: "marketmaker", Quantity: 100, Type: "regular"}
+	priceMap[6.0] = priceLevel
+
+	priceMapNo := OrderBook[symbol].No
+	if _, exists := priceMapNo[4.0]; !exists {
+		priceMapNo[4.0] = types.PriceLevel{Total: 0, Orders: make(map[string]types.OrderBookEntry)}
+	}
+	priceLevelNo := priceMapNo[4.0]
+	priceLevelNo.Total += 100
+	priceLevelNo.Orders[orderId2] = types.OrderBookEntry{UserId: "marketmaker", Quantity: 100, Type: "reverted"}
+	priceMapNo[4.0] = priceLevelNo
+
+	OrderBook[symbol] = types.SymbolOrderBook{Yes: priceMap, No: priceMapNo}
+}
 
 func main() {
 	sharedRedis.InitRedis()
@@ -179,7 +272,7 @@ func handleIncomingMessages(message []byte) error {
 			Data: json.RawMessage(fmt.Sprintf(`{"userId":"%s","amount":%f,"status":"success"}`, onRampReq.UserId, onRampReq.Amount)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), types.SERVER_RESPONSES, responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	case types.MARKET:
@@ -215,7 +308,7 @@ func handleIncomingMessages(message []byte) error {
 		// Update in-memory USDBalances immediately
 		USDBalances[user.Id] = types.USDBalance{Balance: 10000, Locked: 0}
 		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
-		engineToServerPubSubClient.Publish(context.Background(), types.SERVER_RESPONSES, message).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", message).Err()
 		return nil
 
 	case types.BALANCE:
@@ -270,12 +363,13 @@ func handleIncomingMessages(message []byte) error {
 			return err
 		}
 		orderBookData, _ := json.Marshal(orderBook)
+		responseData := fmt.Sprintf(`{"symbol":"%s","orderBook":%s}`, req.Symbol, string(orderBookData))
 		responseMsg := types.IncomingMessage{
 			Type: string(types.GET_ORDER_BOOK),
-			Data: orderBookData,
+			Data: json.RawMessage(responseData),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	case string(types.CANCLE_ORDER):
@@ -294,7 +388,7 @@ func handleIncomingMessages(message []byte) error {
 			Data: json.RawMessage(fmt.Sprintf(`{"orderId":"%s","status":"cancelled"}`, cancelReq.OrderId)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	case string(types.END_MARKET):
@@ -317,7 +411,7 @@ func handleIncomingMessages(message []byte) error {
 			Data: json.RawMessage(fmt.Sprintf(`{"marketId":"%s","status":"ended","winner":"%s"}`, endReq.MarketId, endReq.WinningStock)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	case string(types.BUY_ORDER):
@@ -334,7 +428,7 @@ func handleIncomingMessages(message []byte) error {
 				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s","userId":"%s"}`, err.Error(), orderProps.UserId)),
 			}
 			responseBytes, _ := json.Marshal(responseMsg)
-			engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+			engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 			return err
 		}
 		// Send success response
@@ -345,7 +439,7 @@ func handleIncomingMessages(message []byte) error {
 			Data: resultData,
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	case string(types.SELL_ORDER):
@@ -362,7 +456,7 @@ func handleIncomingMessages(message []byte) error {
 				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s","userId":"%s"}`, err.Error(), orderProps.UserId)),
 			}
 			responseBytes, _ := json.Marshal(responseMsg)
-			engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+			engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 			return err
 		}
 		// Send success response
@@ -373,7 +467,7 @@ func handleIncomingMessages(message []byte) error {
 			Data: resultData,
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	case string(types.CREATE_MARKET):
@@ -386,13 +480,16 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
+		// Add market maker
+		addMarketMaker(createReq.Symbol)
+
 		// Send success response
 		responseMsg := types.IncomingMessage{
 			Type: string(types.CREATE_MARKET),
 			Data: json.RawMessage(fmt.Sprintf(`{"%s":{"status":"created"}}`, createReq.Symbol)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
+		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
 	default:

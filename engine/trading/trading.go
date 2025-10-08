@@ -422,10 +422,9 @@ func PlaceBuyOrder(orderData types.OrderProps) (map[string]interface{}, error) {
 	engineToServerPubSubClient.Publish(context.Background(), stockSymbol, wsBytes)
 
 	return map[string]interface{}{
-		"status":    true,
-		"message":   "Successfully placed the buy order",
-		"stocks":    StockBalances[userId][stockSymbol],
-		"orderbook": OrderBook[stockSymbol],
+		"status":  true,
+		"message": "Successfully placed the buy order",
+		"stocks":  StockBalances[userId][stockSymbol],
 	}, nil
 }
 
@@ -552,7 +551,6 @@ func PlaceSellOrder(orderData types.OrderProps) (map[string]interface{}, error) 
 		"status":      true,
 		"message":     "Successfully placed the sell order",
 		"stockSymbol": stockSymbol,
-		"orderbook":   OrderBook[stockSymbol],
 	}, nil
 }
 

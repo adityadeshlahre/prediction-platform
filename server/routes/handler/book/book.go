@@ -53,7 +53,7 @@ func getOrderBookBySymbol(c echo.Context) error {
 		Symbol: symbol,
 	})
 	msg := types.IncomingMessage{
-		Type: string(types.GET_MARKET),
+		Type: string(types.GET_ORDER_BOOK),
 		Data: data,
 	}
 	msgBytes, _ := json.Marshal(msg)
