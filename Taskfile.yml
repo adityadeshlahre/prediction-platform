@@ -44,3 +44,8 @@ tasks:
   socket:
     cmds:
       - cd socket && air -c .air.toml
+
+  test:
+    desc: run integration tests
+    cmds:
+      - cd test && go run ./cmd/test

@@ -183,6 +183,42 @@ func createMarket(c echo.Context) error {
 		} else {
 			return c.String(400, "Stock symbol not allowed for automatic markets")
 		}
+	} else if req.MarketType == "manual" && req.SourceOfTruth == "manual" {
+		// For manual markets, create a single market
+		stockUniqueSymbol := fmt.Sprintf("%s-%d", req.Symbol, time.Now().UnixMilli())
+
+		marketData := map[string]interface{}{
+			"symbol":    stockUniqueSymbol,
+			"price":     0, // Manual markets might not need price
+			"heading":   req.Heading,
+			"eventType": req.EventType,
+			"type":      req.MarketType,
+		}
+
+		data, _ := json.Marshal(marketData)
+		msg := types.IncomingMessage{
+			Type: string(types.CREATE_MARKET),
+			Data: data,
+		}
+		msgBytes, _ := json.Marshal(msg)
+
+		err := serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
+		if err != nil {
+			return c.String(500, "Failed to send create market message")
+		}
+
+		// Wait for response
+		ch := make(chan string, 1)
+		sharedRedis.ServerAwaitsForResponseMap["create_market_"+stockUniqueSymbol] = ch
+		response := <-ch
+
+		var resp types.IncomingMessage
+		json.Unmarshal([]byte(response), &resp)
+
+		var respData map[string]interface{}
+		json.Unmarshal(resp.Data, &respData)
+
+		return c.JSON(200, respData)
 	} else {
 		return c.String(400, "Invalid type or sourceOfTruth")
 	}

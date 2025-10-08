@@ -89,6 +89,11 @@ func main() {
 					var balance types.Balance
 					if err := json.Unmarshal(resp.Data, &balance); err == nil {
 						key = balance.Id
+						// Update USDBalances
+						USDBalances[balance.UserId] = types.USDBalance{
+							Balance: balance.Balance,
+							Locked:  balance.Locked,
+						}
 					}
 				case types.ORDER:
 					var order types.Order
@@ -202,11 +207,13 @@ func handleIncomingMessages(message []byte) error {
 		}
 		// Create balance for new user
 		balanceId := user.Id // Use user ID as balance ID for simplicity
-		newBalance := types.Balance{Id: balanceId, UserId: user.Id, Balance: 1000, Locked: 0}
+		newBalance := types.Balance{Id: balanceId, UserId: user.Id, Balance: 10000, Locked: 0}
 		err = database.CreateOrUpdateBalance(newBalance)
 		if err != nil {
 			return err
 		}
+		// Update in-memory USDBalances immediately
+		USDBalances[user.Id] = types.USDBalance{Balance: 10000, Locked: 0}
 		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		engineToServerPubSubClient.Publish(context.Background(), types.SERVER_RESPONSES, message).Err()
 		return nil
@@ -324,13 +331,14 @@ func handleIncomingMessages(message []byte) error {
 			// Send error response
 			responseMsg := types.IncomingMessage{
 				Type: string(types.BUY_ORDER),
-				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s"}`, err.Error())),
+				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s","userId":"%s"}`, err.Error(), orderProps.UserId)),
 			}
 			responseBytes, _ := json.Marshal(responseMsg)
 			engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
 			return err
 		}
 		// Send success response
+		result["userId"] = orderProps.UserId
 		resultData, _ := json.Marshal(result)
 		responseMsg := types.IncomingMessage{
 			Type: string(types.BUY_ORDER),
@@ -351,13 +359,14 @@ func handleIncomingMessages(message []byte) error {
 			// Send error response
 			responseMsg := types.IncomingMessage{
 				Type: string(types.SELL_ORDER),
-				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s"}`, err.Error())),
+				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s","userId":"%s"}`, err.Error(), orderProps.UserId)),
 			}
 			responseBytes, _ := json.Marshal(responseMsg)
 			engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()
 			return err
 		}
 		// Send success response
+		result["userId"] = orderProps.UserId
 		resultData, _ := json.Marshal(result)
 		responseMsg := types.IncomingMessage{
 			Type: string(types.SELL_ORDER),
@@ -380,7 +389,7 @@ func handleIncomingMessages(message []byte) error {
 		// Send success response
 		responseMsg := types.IncomingMessage{
 			Type: string(types.CREATE_MARKET),
-			Data: json.RawMessage(fmt.Sprintf(`{"symbol":"%s","status":"created"}`, createReq.Symbol)),
+			Data: json.RawMessage(fmt.Sprintf(`{"%s":{"status":"created"}}`, createReq.Symbol)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.Publish(context.Background(), "SERVER_RESPONSES", responseBytes).Err()

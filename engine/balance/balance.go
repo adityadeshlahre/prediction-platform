@@ -67,7 +67,7 @@ func OnRampUSD(userId string, amount float64) error {
 		TakerId:         userId,
 		TransectionType: types.DEPOSIT,
 		Quantity:        amount,
-		Price:           10000, // USD deposit
+		Price:           100000, // USD deposit
 		Symbol:          "USD",
 		SymbolStockType: "USD",
 		CreatedAt:       time.Now().Format(time.RFC3339),

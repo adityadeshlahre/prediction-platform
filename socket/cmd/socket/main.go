@@ -91,7 +91,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Println(time.Now().Format(time.RFC3339), "New client connected")
 
-	if err := conn.WriteMessage(websocket.TextMessage, []byte("connection successfull")); err != nil {
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("connection successful")); err != nil {
 		log.Println("Write error:", err)
 		return
 	}

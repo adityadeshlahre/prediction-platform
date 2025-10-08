@@ -24,6 +24,7 @@ func orderRoutes() {
 		orderGroup.POST("/buy", placeBuyOrder)
 		orderGroup.POST("/sell", placeSellOrder)
 		orderGroup.POST("/cancel", cancelOrder)
+		orderGroup.POST("/endmarket", endMarket)
 	}
 }
 
@@ -51,7 +52,9 @@ func placeBuyOrder(c echo.Context) error {
 
 	var resp types.IncomingMessage
 	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == string(types.BUY_ORDER) {
-		return c.JSON(200, resp.Data)
+		var data map[string]interface{}
+		json.Unmarshal(resp.Data, &data)
+		return c.JSON(200, data)
 	}
 
 	return c.JSON(500, map[string]string{"error": "Failed to place buy order"})
@@ -81,7 +84,9 @@ func placeSellOrder(c echo.Context) error {
 
 	var resp types.IncomingMessage
 	if err := json.Unmarshal([]byte(response), &resp); err == nil && resp.Type == string(types.SELL_ORDER) {
-		return c.JSON(200, resp.Data)
+		var data map[string]interface{}
+		json.Unmarshal(resp.Data, &data)
+		return c.JSON(200, data)
 	}
 
 	return c.JSON(500, map[string]string{"error": "Failed to place sell order"})
@@ -109,4 +114,27 @@ func cancelOrder(c echo.Context) error {
 	sharedRedis.ServerAwaitsForResponseMap[req.OrderId] = ch
 	<-ch
 	return c.String(200, "Order cancelled")
+}
+
+func endMarket(c echo.Context) error {
+	var req struct {
+		StockSymbol  string `json:"stockSymbol"`
+		MarketId     string `json:"marketId"`
+		WinningStock string `json:"winningStock"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.String(400, "Invalid request")
+	}
+	data, _ := json.Marshal(req)
+	msg := types.IncomingMessage{
+		Type: string(types.END_MARKET),
+		Data: data,
+	}
+	msgBytes, _ := json.Marshal(msg)
+	err := serverToEngineQueueClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
+	if err != nil {
+		return c.String(500, "Failed to send message")
+	}
+	// For end market, perhaps no response needed, or await
+	return c.String(200, "Market end initiated")
 }
