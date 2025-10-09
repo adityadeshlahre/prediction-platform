@@ -268,7 +268,7 @@ func handleIncomingMessages(message []byte) error {
 		}
 		// Send success response
 		responseMsg := types.IncomingMessage{
-			Type: string(types.ONRAMP_USD),
+			Type: types.ONRAMP_USD,
 			Data: json.RawMessage(fmt.Sprintf(`{"userId":"%s","amount":%f,"status":"success"}`, onRampReq.UserId, onRampReq.Amount)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
@@ -350,7 +350,7 @@ func handleIncomingMessages(message []byte) error {
 		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		return nil
 
-	case string(types.GET_ORDER_BOOK):
+	case types.GET_ORDER_BOOK:
 		var req struct {
 			Symbol string `json:"symbol"`
 		}
@@ -365,14 +365,14 @@ func handleIncomingMessages(message []byte) error {
 		orderBookData, _ := json.Marshal(orderBook)
 		responseData := fmt.Sprintf(`{"symbol":"%s","orderBook":%s}`, req.Symbol, string(orderBookData))
 		responseMsg := types.IncomingMessage{
-			Type: string(types.GET_ORDER_BOOK),
+			Type: types.GET_ORDER_BOOK,
 			Data: json.RawMessage(responseData),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
-	case string(types.CANCLE_ORDER):
+	case types.CANCLE_ORDER:
 		var cancelReq types.CancelOrderProps
 		err = json.Unmarshal(msg.Data, &cancelReq)
 		if err != nil {
@@ -384,14 +384,14 @@ func handleIncomingMessages(message []byte) error {
 		}
 		// Send success response
 		responseMsg := types.IncomingMessage{
-			Type: string(types.CANCLE_ORDER),
+			Type: types.CANCLE_ORDER,
 			Data: json.RawMessage(fmt.Sprintf(`{"orderId":"%s","status":"cancelled"}`, cancelReq.OrderId)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
-	case string(types.END_MARKET):
+	case types.END_MARKET:
 		var endReq struct {
 			StockSymbol  string `json:"stockSymbol"`
 			MarketId     string `json:"marketId"`
@@ -407,14 +407,14 @@ func handleIncomingMessages(message []byte) error {
 		}
 		// Send success response
 		responseMsg := types.IncomingMessage{
-			Type: string(types.END_MARKET),
+			Type: types.END_MARKET,
 			Data: json.RawMessage(fmt.Sprintf(`{"marketId":"%s","status":"ended","winner":"%s"}`, endReq.MarketId, endReq.WinningStock)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
-	case string(types.BUY_ORDER):
+	case types.BUY_ORDER:
 		var orderProps types.OrderProps
 		err = json.Unmarshal(msg.Data, &orderProps)
 		if err != nil {
@@ -424,7 +424,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			// Send error response
 			responseMsg := types.IncomingMessage{
-				Type: string(types.BUY_ORDER),
+				Type: types.BUY_ORDER,
 				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s","userId":"%s"}`, err.Error(), orderProps.UserId)),
 			}
 			responseBytes, _ := json.Marshal(responseMsg)
@@ -435,14 +435,14 @@ func handleIncomingMessages(message []byte) error {
 		result["userId"] = orderProps.UserId
 		resultData, _ := json.Marshal(result)
 		responseMsg := types.IncomingMessage{
-			Type: string(types.BUY_ORDER),
+			Type: types.BUY_ORDER,
 			Data: resultData,
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
-	case string(types.SELL_ORDER):
+	case types.SELL_ORDER:
 		var orderProps types.OrderProps
 		err = json.Unmarshal(msg.Data, &orderProps)
 		if err != nil {
@@ -452,7 +452,7 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			// Send error response
 			responseMsg := types.IncomingMessage{
-				Type: string(types.SELL_ORDER),
+				Type: types.SELL_ORDER,
 				Data: json.RawMessage(fmt.Sprintf(`{"error":"%s","userId":"%s"}`, err.Error(), orderProps.UserId)),
 			}
 			responseBytes, _ := json.Marshal(responseMsg)
@@ -463,14 +463,14 @@ func handleIncomingMessages(message []byte) error {
 		result["userId"] = orderProps.UserId
 		resultData, _ := json.Marshal(result)
 		responseMsg := types.IncomingMessage{
-			Type: string(types.SELL_ORDER),
+			Type: types.SELL_ORDER,
 			Data: resultData,
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
 		return nil
 
-	case string(types.CREATE_MARKET):
+	case types.CREATE_MARKET:
 		var createReq types.CreateMarket
 		err = json.Unmarshal(msg.Data, &createReq)
 		if err != nil {
@@ -485,7 +485,7 @@ func handleIncomingMessages(message []byte) error {
 
 		// Send success response
 		responseMsg := types.IncomingMessage{
-			Type: string(types.CREATE_MARKET),
+			Type: types.CREATE_MARKET,
 			Data: json.RawMessage(fmt.Sprintf(`{"%s":{"status":"created"}}`, createReq.Symbol)),
 		}
 		responseBytes, _ := json.Marshal(responseMsg)

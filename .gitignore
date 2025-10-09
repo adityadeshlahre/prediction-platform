@@ -2,3 +2,7 @@ tmp/
 tmp/**
 main
 .env
+database-service
+socket-service
+server-service
+engine-service

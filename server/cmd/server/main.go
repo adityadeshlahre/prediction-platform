@@ -49,7 +49,7 @@ func main() {
 							delete(sharedRedis.ServerAwaitsForResponseMap, user.Id)
 						}
 					}
-				case string(types.CREATE_MARKET):
+				case types.CREATE_MARKET:
 					var data map[string]interface{}
 					if err := json.Unmarshal(resp.Data, &data); err == nil {
 						for key := range data {
@@ -63,7 +63,7 @@ func main() {
 							}
 						}
 					}
-				case string(types.BUY_ORDER), string(types.SELL_ORDER):
+				case types.BUY_ORDER, types.SELL_ORDER:
 					var data map[string]interface{}
 					if err := json.Unmarshal(resp.Data, &data); err == nil {
 						if userId, ok := data["userId"].(string); ok {
@@ -73,7 +73,7 @@ func main() {
 							}
 						}
 					}
-				case string(types.GET_ORDER_BOOK):
+				case types.GET_ORDER_BOOK:
 					var data map[string]interface{}
 					if err := json.Unmarshal(resp.Data, &data); err == nil {
 						if symbol, ok := data["symbol"].(string); ok {
