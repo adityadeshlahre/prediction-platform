@@ -15,7 +15,7 @@ import (
 
 const (
 	serverURL = "http://localhost:8080"
-	numUsers  = 6
+	numUsers  = 1
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 	fmt.Println("Test 1: Creating multiple users...")
 	userIDs := make([]string, numUsers)
 	for i := 0; i < numUsers; i++ {
-		userID := fmt.Sprintf("testuser%d", i+1)
+		userID := fmt.Sprintf("%d", i+1)
 		userIDs[i] = userID
 		resp, err := http.Post(serverURL+"/user/"+userID, "application/json", nil)
 		if err != nil {
@@ -41,8 +41,8 @@ func main() {
 		fmt.Printf("✓ User %s created\n", userID)
 	}
 
-	// Test 2: Create a market
-	fmt.Println("Test 2: Creating a prediction market...")
+	// Test 2: Create a manual market
+	fmt.Println("Test 2: Creating a manual prediction market...")
 	marketReq := types.CreateMarket{
 		Symbol:        "BTC_PREDICT",
 		MarketType:    "manual",
@@ -55,11 +55,11 @@ func main() {
 	marketJSON, _ := json.Marshal(marketReq)
 	resp, err := http.Post(serverURL+"/symbol/createmarket", "application/json", bytes.NewBuffer(marketJSON))
 	if err != nil {
-		log.Fatalf("Failed to create market: %v", err)
+		log.Fatalf("Failed to create manual market: %v", err)
 	}
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		log.Fatalf("Create market failed with status: %d, body: %s", resp.StatusCode, string(body))
+		log.Fatalf("Create manual market failed with status: %d, body: %s", resp.StatusCode, string(body))
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -75,7 +75,38 @@ func main() {
 	if marketSymbol == "" {
 		log.Fatalf("Failed to get market symbol from response")
 	}
-	fmt.Printf("✓ Market created successfully with symbol: %s\n", marketSymbol)
+	fmt.Printf("✓ Manual market created successfully with symbol: %s\n", marketSymbol)
+
+	// Test 2b: Create an automatic market (1 minute interval, using CoinGecko API)
+	// Commented out for stress testing to avoid interference
+	fmt.Println("Test 2b: Creating an automatic prediction market...")
+	autoMarketReq := types.CreateMarket{
+		Symbol:          "bitcoin", // Must be in allowed list
+		MarketType:      "automatic",
+		EndsIn:          120000, // 2 minutes for market duration
+		SourceOfTruth:   "automatic",
+		EndAfterTime:    120000,
+		Heading:         "Will BTC price change significantly?",
+		EventType:       "crypto",
+		RepeatEventTime: 60000, // 1 minute intervals
+	}
+	autoMarketJSON, _ := json.Marshal(autoMarketReq)
+	resp, err = http.Post(serverURL+"/symbol/createmarket", "application/json", bytes.NewBuffer(autoMarketJSON))
+	if err != nil {
+		log.Printf("Failed to create automatic market: %v", err)
+	} else {
+		if resp.StatusCode == 200 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			fmt.Printf("✓ Automatic market creation scheduled: %s\n", string(body))
+			// Wait a bit to let automatic markets start
+			time.Sleep(2 * time.Second)
+		} else {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			log.Printf("Create automatic market returned status: %d, body: %s", resp.StatusCode, string(body))
+		}
+	}
 
 	// Test 3: Subscribe to WebSocket for market updates
 	fmt.Println("Test 3: Subscribing to WebSocket for market updates...")

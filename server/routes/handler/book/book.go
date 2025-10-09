@@ -42,12 +42,12 @@ func getAllOrderBooks(c echo.Context) error {
 	ch := make(chan string, 1)
 	sharedRedis.ServerAwaitsForResponseMap["get_all_order_books"] = ch
 	response := <-ch
-	
+
 	var resp types.IncomingMessage
 	if err := json.Unmarshal([]byte(response), &resp); err != nil {
 		return c.String(500, "Failed to parse response")
 	}
-	
+
 	return c.String(200, string(resp.Data))
 }
 
@@ -71,22 +71,22 @@ func getOrderBookBySymbol(c echo.Context) error {
 	ch := make(chan string, 1)
 	sharedRedis.ServerAwaitsForResponseMap["get_order_book_"+symbol] = ch
 	response := <-ch
-	
+
 	// Unwrap the response to return only the orderBook
 	var resp types.IncomingMessage
 	if err := json.Unmarshal([]byte(response), &resp); err != nil {
 		return c.String(500, "Failed to parse response")
 	}
-	
+
 	var dataMap map[string]interface{}
 	if err := json.Unmarshal(resp.Data, &dataMap); err != nil {
 		return c.String(500, "Failed to parse order book data")
 	}
-	
+
 	if orderBook, ok := dataMap["orderBook"]; ok {
 		orderBookBytes, _ := json.Marshal(orderBook)
 		return c.String(200, string(orderBookBytes))
 	}
-	
+
 	return c.String(200, string(resp.Data))
 }

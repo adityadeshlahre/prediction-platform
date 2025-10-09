@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-
 	"time"
 
 	"github.com/adityadeshlahre/probo-v1/engine/balance"
@@ -522,6 +521,62 @@ func handleIncomingMessages(message []byte) error {
 		}
 		responseBytes, _ := json.Marshal(responseMsg)
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
+		return nil
+
+	case types.GET_BALANCE:
+		var req struct {
+			UserId string `json:"userId"`
+		}
+		err = json.Unmarshal(msg.Data, &req)
+		if err != nil {
+			return err
+		}
+		balance, exists := USDBalances[req.UserId]
+		if !exists {
+			balance = types.USDBalance{Balance: 0, Locked: 0}
+		}
+		responseData := map[string]interface{}{
+			"userId":  req.UserId,
+			"balance": balance,
+		}
+		responseDataBytes, _ := json.Marshal(responseData)
+		responseMsg := types.IncomingMessage{
+			Type: types.GET_BALANCE,
+			Data: responseDataBytes,
+		}
+		responseBytes, _ := json.Marshal(responseMsg)
+		err = engineToServerPubSubClient.LPush(context.Background(), types.SERVER_RESPONSES_QUEUE, responseBytes).Err()
+		if err != nil {
+			return err
+		}
+		return nil
+
+	case types.GET_STOCKS:
+		var req struct {
+			UserId string `json:"userId"`
+		}
+		err = json.Unmarshal(msg.Data, &req)
+		if err != nil {
+			return err
+		}
+		stocks, exists := StockBalances[req.UserId]
+		if !exists {
+			stocks = make(types.UserStockBalance)
+		}
+		responseData := map[string]interface{}{
+			"userId": req.UserId,
+			"stocks": stocks,
+		}
+		responseDataBytes, _ := json.Marshal(responseData)
+		responseMsg := types.IncomingMessage{
+			Type: types.GET_STOCKS,
+			Data: responseDataBytes,
+		}
+		responseBytes, _ := json.Marshal(responseMsg)
+		err = engineToServerPubSubClient.LPush(context.Background(), types.SERVER_RESPONSES_QUEUE, responseBytes).Err()
+		if err != nil {
+			return err
+		}
 		return nil
 
 	default:

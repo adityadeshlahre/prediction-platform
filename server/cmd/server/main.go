@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/adityadeshlahre/probo-v1/server/routes/handler/balance"
 	"github.com/adityadeshlahre/probo-v1/server/routes/handler/book"
 	"github.com/adityadeshlahre/probo-v1/server/routes/handler/order"
 	"github.com/adityadeshlahre/probo-v1/server/routes/handler/symbol"
@@ -90,6 +91,26 @@ func main() {
 						ch <- message
 						delete(sharedRedis.ServerAwaitsForResponseMap, chKey)
 					}
+				case types.GET_BALANCE:
+					var data map[string]interface{}
+					if err := json.Unmarshal(resp.Data, &data); err == nil {
+						if userId, ok := data["userId"].(string); ok {
+							if ch, ok := sharedRedis.ServerAwaitsForResponseMap[userId]; ok {
+								ch <- message
+								delete(sharedRedis.ServerAwaitsForResponseMap, userId)
+							}
+						}
+					}
+				case types.GET_STOCKS:
+					var data map[string]interface{}
+					if err := json.Unmarshal(resp.Data, &data); err == nil {
+						if userId, ok := data["userId"].(string); ok {
+							if ch, ok := sharedRedis.ServerAwaitsForResponseMap[userId]; ok {
+								ch <- message
+								delete(sharedRedis.ServerAwaitsForResponseMap, userId)
+							}
+						}
+					}
 				}
 			}
 			println("Received message in server:", message)
@@ -98,6 +119,7 @@ func main() {
 
 	e := server.NewServer()
 	user.InitUserRoute(e, serverToEngineQueueClient)
+	balance.InitBalanceRoutes(e, serverToEngineQueueClient)
 	order.InitOrderRoutes(e, serverToEngineQueueClient)
 	symbol.InitSymbolRoutes(e, serverToEngineQueueClient)
 	book.InitBookRoutes(e, serverToEngineQueueClient)
