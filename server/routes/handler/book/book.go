@@ -21,29 +21,35 @@ func InitBookRoutes(e *echo.Echo, client *redis.Client) {
 func bookRoutes() {
 	bookGroup := router.Group("/book")
 	{
-		// bookGroup.GET("/get", getAllOrderBooks)
+		bookGroup.GET("/get", getAllOrderBooks)
 		bookGroup.GET("/get/:symbol", getOrderBookBySymbol)
 	}
 }
 
-// func getAllOrderBooks(c echo.Context) error {
-// 	symbol := struct{}{}
-// 	data, _ := json.Marshal(symbol)
-// 	msg := types.IncomingMessage{
-// 		Type: string(types.GET_ORDER_BOOK),
-// 		Data: data,
-// 	}
-// 	msgBytes, _ := json.Marshal(msg)
-// 	err := serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
-// 	if err != nil {
-// 		return c.String(500, "Failed to send message")
-// 	}
-// 	// Await response
-// 	ch := make(chan string, 1)
-// 	sharedRedis.ServerAwaitsForResponseMap["get_all_order_books"] = ch
-// 	response := <-ch
-// 	return c.String(200, response)
-// }
+func getAllOrderBooks(c echo.Context) error {
+	symbol := struct{}{}
+	data, _ := json.Marshal(symbol)
+	msg := types.IncomingMessage{
+		Type: types.GET_ALL_ORDER_BOOK,
+		Data: data,
+	}
+	msgBytes, _ := json.Marshal(msg)
+	err := serverToEngineClient.LPush(c.Request().Context(), types.HTTP_TO_ENGINE, msgBytes).Err()
+	if err != nil {
+		return c.String(500, "Failed to send message")
+	}
+	// Await response
+	ch := make(chan string, 1)
+	sharedRedis.ServerAwaitsForResponseMap["get_all_order_books"] = ch
+	response := <-ch
+	
+	var resp types.IncomingMessage
+	if err := json.Unmarshal([]byte(response), &resp); err != nil {
+		return c.String(500, "Failed to parse response")
+	}
+	
+	return c.String(200, string(resp.Data))
+}
 
 func getOrderBookBySymbol(c echo.Context) error {
 	symbol := c.Param("symbol")
@@ -65,14 +71,22 @@ func getOrderBookBySymbol(c echo.Context) error {
 	ch := make(chan string, 1)
 	sharedRedis.ServerAwaitsForResponseMap["get_order_book_"+symbol] = ch
 	response := <-ch
+	
 	// Unwrap the response to return only the orderBook
 	var resp types.IncomingMessage
-	json.Unmarshal([]byte(response), &resp)
+	if err := json.Unmarshal([]byte(response), &resp); err != nil {
+		return c.String(500, "Failed to parse response")
+	}
+	
 	var dataMap map[string]interface{}
-	json.Unmarshal(resp.Data, &dataMap)
+	if err := json.Unmarshal(resp.Data, &dataMap); err != nil {
+		return c.String(500, "Failed to parse order book data")
+	}
+	
 	if orderBook, ok := dataMap["orderBook"]; ok {
 		orderBookBytes, _ := json.Marshal(orderBook)
 		return c.String(200, string(orderBookBytes))
 	}
-	return c.String(200, response)
+	
+	return c.String(200, string(resp.Data))
 }

@@ -113,6 +113,11 @@ func GetOrderBook(symbol string) (types.SymbolOrderBook, error) {
 	}, nil
 }
 
+// GetAllOrderBooks returns all order books
+func GetAllOrderBooks() (types.YesNoOrderBook, error) {
+	return OrderBook, nil
+}
+
 // UpdateOrderBookAfterFill updates the order book after an order is filled
 func UpdateOrderBookAfterFill(orderId string, filledQty float64, symbol string, stockType string, price float64) error {
 	stockType = strings.ToLower(stockType)

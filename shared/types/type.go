@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 type IncomingMessage struct {
@@ -30,6 +31,7 @@ const (
 	SERVER_TO_ENGINE_QUEUE = "SERVER_TO_ENGINE_QUEUE"
 	DATABASE_QUEUE         = "DATABASE_QUEUE"
 	SERVER_RESPONSES       = "SERVER_RESPONSES"
+	SERVER_RESPONSES_QUEUE = "SERVER_RESPONSES_QUEUE"
 	DB_ACTIONS             = "DB_ACTIONS"
 	HTTP_TO_ENGINE         = "HTTP_TO_ENGINE"
 	ENGINE_RESPONSES       = "ENGINE_RESPONSES"
@@ -45,6 +47,7 @@ const (
 	GET_STOCKS     = "GET_STOCKS"
 	USER_USD       = "USER_USD"
 	USER_STOCKS    = "USER_STOCKS"
+	GET_ALL_ORDER_BOOK = "GET_ALL_ORDER_BOOK"
 	GET_ORDER_BOOK = "GET_ORDER_BOOK"
 	GET_MARKET     = "GET_MARKET"
 	CREATE_USER    = "CREATE_USER"
@@ -265,6 +268,16 @@ type SymbolOrderBook struct {
 }
 
 type PriceOrderBook map[float64]PriceLevel
+
+// MarshalJSON custom marshaler for PriceOrderBook to handle float64 keys
+func (p PriceOrderBook) MarshalJSON() ([]byte, error) {
+	// Convert float64 keys to strings
+	stringMap := make(map[string]PriceLevel)
+	for price, level := range p {
+		stringMap[fmt.Sprintf("%.6f", price)] = level
+	}
+	return json.Marshal(stringMap)
+}
 
 type PriceLevel struct {
 	Total  float64                   `json:"total"`

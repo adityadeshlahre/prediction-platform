@@ -84,6 +84,12 @@ func main() {
 							}
 						}
 					}
+				case types.GET_ALL_ORDER_BOOK:
+					chKey := "get_all_order_books"
+					if ch, ok := sharedRedis.ServerAwaitsForResponseMap[chKey]; ok {
+						ch <- message
+						delete(sharedRedis.ServerAwaitsForResponseMap, chKey)
+					}
 				}
 			}
 			println("Received message in server:", message)

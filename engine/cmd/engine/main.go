@@ -362,14 +362,46 @@ func handleIncomingMessages(message []byte) error {
 		if err != nil {
 			return err
 		}
-		orderBookData, _ := json.Marshal(orderBook)
+		orderBookData, err := json.Marshal(orderBook)
+		if err != nil {
+			return err
+		}
 		responseData := fmt.Sprintf(`{"symbol":"%s","orderBook":%s}`, req.Symbol, string(orderBookData))
 		responseMsg := types.IncomingMessage{
 			Type: types.GET_ORDER_BOOK,
 			Data: json.RawMessage(responseData),
 		}
-		responseBytes, _ := json.Marshal(responseMsg)
-		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", responseBytes).Err()
+		responseBytes, err := json.Marshal(responseMsg)
+		if err != nil {
+			return err
+		}
+		err = engineToServerPubSubClient.LPush(context.Background(), types.SERVER_RESPONSES_QUEUE, responseBytes).Err()
+		if err != nil {
+			return err
+		}
+		return nil
+
+	case types.GET_ALL_ORDER_BOOK:
+		allOrderBooks, err := orderbook.GetAllOrderBooks()
+		if err != nil {
+			return err
+		}
+		orderBooksData, err := json.Marshal(allOrderBooks)
+		if err != nil {
+			return err
+		}
+		responseMsg := types.IncomingMessage{
+			Type: types.GET_ALL_ORDER_BOOK,
+			Data: json.RawMessage(string(orderBooksData)),
+		}
+		responseBytes, err := json.Marshal(responseMsg)
+		if err != nil {
+			return err
+		}
+		err = engineToServerPubSubClient.LPush(context.Background(), types.SERVER_RESPONSES_QUEUE, responseBytes).Err()
+		if err != nil {
+			return err
+		}
 		return nil
 
 	case types.CANCLE_ORDER:
