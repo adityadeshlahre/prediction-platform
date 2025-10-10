@@ -41,20 +41,20 @@ const (
 // action types
 
 const (
-	SELL_ORDER     = "SELL_ORDER"
-	BUY_ORDER      = "BUY_ORDER"
-	GET_USD        = "GET_USD"
-	GET_STOCKS     = "GET_STOCKS"
-	USER_USD       = "USER_USD"
-	USER_STOCKS    = "USER_STOCKS"
+	SELL_ORDER         = "SELL_ORDER"
+	BUY_ORDER          = "BUY_ORDER"
+	GET_USD            = "GET_USD"
+	GET_STOCKS         = "GET_STOCKS"
+	USER_USD           = "USER_USD"
+	USER_STOCKS        = "USER_STOCKS"
 	GET_ALL_ORDER_BOOK = "GET_ALL_ORDER_BOOK"
-	GET_ORDER_BOOK = "GET_ORDER_BOOK"
-	GET_MARKET     = "GET_MARKET"
-	CREATE_USER    = "CREATE_USER"
-	CREATE_MARKET  = "CREATE_MARKET"
-	ONRAMP_USD     = "ONRAMP_USD"
-	CANCLE_ORDER   = "CANCLE_ORDER"
-	END_MARKET     = "END_MARKET"
+	GET_ORDER_BOOK     = "GET_ORDER_BOOK"
+	GET_MARKET         = "GET_MARKET"
+	CREATE_USER        = "CREATE_USER"
+	CREATE_MARKET      = "CREATE_MARKET"
+	ONRAMP_USD         = "ONRAMP_USD"
+	CANCLE_ORDER       = "CANCLE_ORDER"
+	END_MARKET         = "END_MARKET"
 )
 
 type Balance struct {
@@ -287,5 +287,6 @@ type PriceLevel struct {
 type OrderBookEntry struct {
 	UserId   string  `json:"userId"`
 	Quantity float64 `json:"quantity"`
+	Price    float64 `json:"price"`
 	Type     string  `json:"type"` // "reverted" | "regular"
 }

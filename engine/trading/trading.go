@@ -78,7 +78,7 @@ func mintStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 	} else {
 		oppositeStockType = "yes"
 	}
-	correspondingPrice := 10.0 - price
+	correspondingPrice := 1.0 - price
 
 	// Initialize stock balances if they don't exist
 	if _, exists := StockBalances[sellerId]; !exists {
@@ -109,6 +109,28 @@ func mintStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 		sellerStock := StockBalances[sellerId][stockSymbol]
 		sellerStock.No.Quantity += availableQuantity
 		StockBalances[sellerId][stockSymbol] = sellerStock
+	}
+
+	if stockType == "yes" {
+		buyerStock := StockBalances[userId][stockSymbol]
+		buyerStock.Yes.Quantity += availableQuantity
+		StockBalances[userId][stockSymbol] = buyerStock
+	} else {
+		buyerStock := StockBalances[userId][stockSymbol]
+		buyerStock.No.Quantity += availableQuantity
+		StockBalances[userId][stockSymbol] = buyerStock
+	}
+
+	// Update USD balances
+	if buyerBalance, exists := USDBalances[userId]; exists {
+		buyerBalance.Locked -= availableQuantity * price
+		USDBalances[userId] = buyerBalance
+	}
+
+	if sellerBalance, exists := USDBalances[sellerId]; exists {
+		sellerBalance.Locked -= availableQuantity * correspondingPrice
+		sellerBalance.Balance += availableQuantity * correspondingPrice
+		USDBalances[sellerId] = sellerBalance
 	}
 
 	if stockType == "yes" {
@@ -188,7 +210,7 @@ func swapStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 
 	// Update USD balances
 	if buyerBalance, exists := USDBalances[userId]; exists {
-		buyerBalance.Balance -= availableQuantity * price
+		buyerBalance.Locked -= availableQuantity * price
 		USDBalances[userId] = buyerBalance
 	}
 
@@ -211,11 +233,11 @@ func PlaceBuyOrder(orderData types.OrderProps) (map[string]interface{}, error) {
 	price := orderData.Price
 	stockType := orderData.StockType
 
-	// Price conversion: USD to stock price (0-10 range)
-	if price > 1000 || price < 0 {
-		return nil, fmt.Errorf("invalid price, price should be between 0 and 10")
+	// Price validation: USD per share (0-100 range)
+	if price > 100 || price < 0 {
+		return nil, fmt.Errorf("invalid price, price should be between 0 and 100 USD")
 	}
-	stockPrice := price / 100
+	stockPrice := price
 	oppositeStockType := "no"
 	if stockType == "yes" {
 		oppositeStockType = "no"
@@ -363,7 +385,7 @@ func PlaceBuyOrder(orderData types.OrderProps) (map[string]interface{}, error) {
 	}
 
 	// No matching sell orders - create reverted order
-	correspondingPrice := 10.0 - stockPrice
+	correspondingPrice := 100.0 - stockPrice
 	symbolOrderBook := OrderBook[stockSymbol]
 
 	var oppositePriceMap types.PriceOrderBook
@@ -391,6 +413,7 @@ func PlaceBuyOrder(orderData types.OrderProps) (map[string]interface{}, error) {
 	oppositeEntry.Orders[orderId] = types.OrderBookEntry{
 		UserId:   userId,
 		Quantity: requiredQuantity,
+		Price:    price,
 		Type:     "reverted",
 	}
 	oppositePriceMap[correspondingPrice] = oppositeEntry
@@ -436,10 +459,10 @@ func PlaceSellOrder(orderData types.OrderProps) (map[string]interface{}, error) 
 	price := orderData.Price
 	stockType := orderData.StockType
 
-	if price > 1000 || price < 0 {
-		return nil, fmt.Errorf("price should be between 0 and 10 USD")
+	if price > 100 || price < 0 {
+		return nil, fmt.Errorf("price should be between 0 and 100 USD")
 	}
-	stockPrice := price / 100
+	stockPrice := price
 
 	if _, exists := USDBalances[userId]; !exists {
 		return nil, fmt.Errorf("user with the given id doesn't exist")
@@ -497,6 +520,7 @@ func PlaceSellOrder(orderData types.OrderProps) (map[string]interface{}, error) 
 	priceLevel.Total += quantity
 	priceLevel.Orders[orderId] = types.OrderBookEntry{
 		Quantity: quantity,
+		Price:    stockPrice,
 		Type:     "regular",
 		UserId:   userId,
 	}
@@ -595,8 +619,8 @@ func CancelOrder(cancelReq types.CancelOrderProps) error {
 	if order.Type == "reverted" {
 		// Unlock USD balance (from buy order)
 		userBalance := USDBalances[userId]
-		userBalance.Locked -= order.Quantity * price
-		userBalance.Balance += order.Quantity * price
+		userBalance.Locked -= order.Quantity * order.Price
+		userBalance.Balance += order.Quantity * order.Price
 		USDBalances[userId] = userBalance
 	} else {
 		// Unlock stocks (from sell order)

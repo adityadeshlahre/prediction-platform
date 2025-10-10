@@ -47,3 +47,5 @@
 - HTTP Server → Engine: via Redis Queue + Pub/Sub
 - Engine → Database Server: via Redis Queue + Pub/Sub
 - Engine → WebSocket Server: via Redis Pub/Sub (for broadcasting updates)
+- never run the applicaiton after making changes to the code i will run it my self
+- never test the applicaiton after making changes to the code i will test it my self

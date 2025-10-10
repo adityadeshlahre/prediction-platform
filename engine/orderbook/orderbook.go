@@ -49,6 +49,7 @@ func AddToOrderBook(order types.Order) error {
 	priceLevel.Orders[order.Id] = types.OrderBookEntry{
 		UserId:   order.UserId,
 		Quantity: order.Quantity,
+		Price:    order.Price,
 		Type:     "regular",
 	}
 

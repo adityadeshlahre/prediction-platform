@@ -117,10 +117,10 @@ func processOrder(order types.OrderBookEntry, stockSymbol string, stockType stri
 
 	switch order.Type {
 	case "reverted":
-		// Unlock USD balance
+		// Unlock USD balance using the original price
 		if balance, exists := USDBalances[order.UserId]; exists {
-			balance.Locked -= order.Quantity * price
-			balance.Balance += order.Quantity * price
+			balance.Locked -= order.Quantity * order.Price
+			balance.Balance += order.Quantity * order.Price
 			USDBalances[order.UserId] = balance
 		}
 	case "regular":
@@ -249,6 +249,32 @@ func EndMarket(stockSymbol string, winningStock string) error {
 	if err != nil {
 		return fmt.Errorf("failed to process winnings: %v", err)
 	}
+
+	// Process payouts for reverted buy orders on winning side
+	oppositeStockType := "no"
+	if strings.ToLower(winningStock) == "no" {
+		oppositeStockType = "yes"
+	}
+	if orderBook, exists := OrderBook[stockSymbol]; exists {
+		var priceMap types.PriceOrderBook
+		if oppositeStockType == "yes" {
+			priceMap = orderBook.Yes
+		} else {
+			priceMap = orderBook.No
+		}
+		for _, entry := range priceMap {
+			for _, order := range entry.Orders {
+				if order.Type == "reverted" {
+					if balance, exists := USDBalances[order.UserId]; exists {
+						balance.Balance += order.Quantity * 1000
+						USDBalances[order.UserId] = balance
+					}
+				}
+			}
+		}
+	}
+	// Send balance update
+	sendUSDBalancesToDB()
 
 	// Clear the order book and unlock all balances
 	err = clearOrderBook(stockSymbol)

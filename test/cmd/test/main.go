@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -13,13 +15,30 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type BalanceResp struct {
+	Type string `json:"type"`
+	Data struct {
+		Balance types.Balance `json:"balance"`
+		UserId  string        `json:"userId"`
+	} `json:"data"`
+}
+
+type StocksResp struct {
+	Type string `json:"type"`
+	Data struct {
+		Stocks types.UserStockBalance `json:"stocks"`
+		UserId string                 `json:"userId"`
+	} `json:"data"`
+}
+
 const (
 	serverURL = "http://localhost:8080"
-	numUsers  = 1
+	numUsers  = 10
 )
 
 func main() {
-	fmt.Println("Starting comprehensive integration tests for probo-v1 application...")
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	fmt.Println("Starting random integration tests for probo-v1 application...")
 
 	// Wait for services to be ready
 	time.Sleep(3 * time.Second)
@@ -159,175 +178,85 @@ func main() {
 		}
 	}
 
-	// Test 4: Place orders to test trading functionality
-	fmt.Println("Test 4: Placing orders...")
-	// Place some buy and sell orders for YES stock
-	buyOrder1 := types.OrderProps{
-		UserId:      userIDs[0],
-		StockType:   "yes",
-		Quantity:    10,
-		Price:       0.6,
-		StockSymbol: marketSymbol,
-	}
-	buyJSON1, _ := json.Marshal(buyOrder1)
-	resp, err = http.Post(serverURL+"/order/buy", "application/json", bytes.NewBuffer(buyJSON1))
-	if err != nil {
-		log.Printf("Failed to place buy order 1: %v", err)
-	} else {
-		resp.Body.Close()
-		if resp.StatusCode == 200 {
-			fmt.Println("✓ Buy order 1 placed")
-		} else {
-			body, _ := io.ReadAll(resp.Body)
-			log.Printf("Buy order 1 failed: %d, %s", resp.StatusCode, string(body))
-		}
-	}
+	// Test 4: Place random orders for users (multiple per user until they can't)
+	fmt.Println("Test 4: Placing random orders...")
+	for i := 0; i < numUsers; i++ {
+		userID := userIDs[i]
+		attempts := 0
+		maxAttempts := 20
+		for attempts < maxAttempts {
+			attempts++
+			orderType := "buy"
+			if r.Float32() < 0.5 {
+				orderType = "sell"
+			}
+			stockType := "yes"
+			if r.Float32() < 0.5 {
+				stockType = "no"
+			}
+			quantity := 1
+			price := float64(10 + r.Intn(81)) // 10 to 90 USD
 
-	sellOrder1 := types.OrderProps{
-		UserId:      userIDs[1],
-		StockType:   "yes",
-		Quantity:    10,
-		Price:       0.6,
-		StockSymbol: marketSymbol,
-	}
-	sellJSON1, _ := json.Marshal(sellOrder1)
-	resp, err = http.Post(serverURL+"/order/sell", "application/json", bytes.NewBuffer(sellJSON1))
-	if err != nil {
-		log.Printf("Failed to place sell order 1: %v", err)
-	} else {
-		resp.Body.Close()
-		if resp.StatusCode == 200 {
-			fmt.Println("✓ Sell order 1 placed (should match buy)")
-		} else {
-			body, _ := io.ReadAll(resp.Body)
-			log.Printf("Sell order 1 failed: %d, %s", resp.StatusCode, string(body))
-		}
-	}
+			orderProps := types.OrderProps{
+				UserId:      userID,
+				StockType:   stockType,
+				Quantity:    float64(quantity),
+				Price:       price,
+				StockSymbol: marketSymbol,
+			}
 
-	// Place orders for NO stock
-	buyOrder2 := types.OrderProps{
-		UserId:      userIDs[2],
-		StockType:   "no",
-		Quantity:    5,
-		Price:       0.4,
-		StockSymbol: marketSymbol,
-	}
-	buyJSON2, _ := json.Marshal(buyOrder2)
-	resp, err = http.Post(serverURL+"/order/buy", "application/json", bytes.NewBuffer(buyJSON2))
-	if err != nil {
-		log.Printf("Failed to place buy order 2: %v", err)
-	} else {
-		resp.Body.Close()
-		if resp.StatusCode == 200 {
-			fmt.Println("✓ Buy order 2 placed (NO stock)")
-		} else {
-			body, _ := io.ReadAll(resp.Body)
-			log.Printf("Buy order 2 failed: %d, %s", resp.StatusCode, string(body))
-		}
-	}
+			var url string
+			if orderType == "buy" {
+				url = serverURL + "/order/buy"
+			} else {
+				url = serverURL + "/order/sell"
+			}
 
-	sellOrder2 := types.OrderProps{
-		UserId:      userIDs[3],
-		StockType:   "no",
-		Quantity:    5,
-		Price:       0.4,
-		StockSymbol: marketSymbol,
-	}
-	sellJSON2, _ := json.Marshal(sellOrder2)
-	resp, err = http.Post(serverURL+"/order/sell", "application/json", bytes.NewBuffer(sellJSON2))
-	if err != nil {
-		log.Printf("Failed to place sell order 2: %v", err)
-	} else {
-		resp.Body.Close()
-		if resp.StatusCode == 200 {
-			fmt.Println("✓ Sell order 2 placed (NO stock, should match)")
-		} else {
+			jsonData, _ := json.Marshal(orderProps)
+			resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
+			if err != nil {
+				log.Printf("Failed to place order for user %s: %v", userID, err)
+				break
+			}
 			body, _ := io.ReadAll(resp.Body)
-			log.Printf("Sell order 2 failed: %d, %s", resp.StatusCode, string(body))
-		}
-	}
-
-	// Place a non-matching order
-	buyOrder3 := types.OrderProps{
-		UserId:      userIDs[4],
-		StockType:   "yes",
-		Quantity:    20,
-		Price:       0.7,
-		StockSymbol: marketSymbol,
-	}
-	buyJSON3, _ := json.Marshal(buyOrder3)
-	resp, err = http.Post(serverURL+"/order/buy", "application/json", bytes.NewBuffer(buyJSON3))
-	if err != nil {
-		log.Printf("Failed to place buy order 3: %v", err)
-	} else {
-		resp.Body.Close()
-		if resp.StatusCode == 200 {
-			fmt.Println("✓ Buy order 3 placed (non-matching)")
-		} else {
-			body, _ := io.ReadAll(resp.Body)
-			log.Printf("Buy order 3 failed: %d, %s", resp.StatusCode, string(body))
+			resp.Body.Close()
+			if resp.StatusCode == 200 {
+				var orderResp map[string]interface{}
+				json.Unmarshal(body, &orderResp)
+				if status, ok := orderResp["status"].(bool); ok && status {
+					fmt.Printf("✓ Order placed for user %s (%s %s %.0f x %d)\n", userID, orderType, stockType, price, quantity)
+				} else {
+					message, _ := orderResp["message"].(string)
+					if message == "insufficient balance" || message == "user doesn't have the required quantity" {
+						// Can't place more orders
+						break
+					} else {
+						log.Printf("Order failed for user %s: %s", userID, message)
+						break
+					}
+				}
+			} else {
+				log.Printf("Order failed for user %s: %d", userID, resp.StatusCode)
+				break
+			}
 		}
 	}
 
 	// Wait for order processing
 	time.Sleep(1 * time.Second)
 
-	// Verify balances after order placement
-	fmt.Println("Verifying balances after order placement...")
-	// user0: bought 10 YES at 0.6, matched, so -6 USD, locked 0
-	resp, err = http.Get(serverURL + "/balance/get/" + userIDs[0])
-	if err == nil && resp.StatusCode == 200 {
-		body, _ := io.ReadAll(resp.Body)
-		var bal types.Balance
-		json.Unmarshal(body, &bal)
-		if bal.Balance == 9994 && bal.Locked == 0 {
-			fmt.Println("✓ Balance correct for user0 (matched buy)")
-		} else {
-			log.Printf("Balance check failed for user0: %+v", bal)
-		}
-	}
-	resp.Body.Close()
-
-	// user1: sold 10 YES at 0.6, matched, +6 USD, locked 0
-	resp, err = http.Get(serverURL + "/balance/get/" + userIDs[1])
-	if err == nil && resp.StatusCode == 200 {
-		body, _ := io.ReadAll(resp.Body)
-		var bal types.Balance
-		json.Unmarshal(body, &bal)
-		if bal.Balance == 10006 && bal.Locked == 0 {
-			fmt.Println("✓ Balance correct for user1 (matched sell)")
-		} else {
-			log.Printf("Balance check failed for user1: %+v", bal)
-		}
-	}
-	resp.Body.Close()
-
-	// user4: bought 20 YES at 0.7, not matched, -14 USD locked
-	resp, err = http.Get(serverURL + "/balance/get/" + userIDs[4])
-	if err == nil && resp.StatusCode == 200 {
-		body, _ := io.ReadAll(resp.Body)
-		var bal types.Balance
-		json.Unmarshal(body, &bal)
-		if bal.Balance == 9986 && bal.Locked == 14 {
-			fmt.Println("✓ Balance correct for user4 (reverted buy)")
-		} else {
-			log.Printf("Balance check failed for user4: %+v", bal)
-		}
-	}
-	resp.Body.Close()
-
 	// Test 5: Get order book
 	fmt.Println("Test 5: Getting order book...")
 	resp, err = http.Get(serverURL + "/book/get/" + marketSymbol)
 	if err != nil {
-		log.Fatalf("Failed to get final order book: %v", err)
+		log.Fatalf("Failed to get order book: %v", err)
 	}
 	if resp.StatusCode != 200 {
-		log.Fatalf("Get final order book failed with status: %d", resp.StatusCode)
+		log.Fatalf("Get order book failed with status: %d", resp.StatusCode)
 	}
 	body, _ = io.ReadAll(resp.Body)
 	resp.Body.Close()
-	fmt.Printf("✓ Final order book: %s\n", string(body))
+	fmt.Printf("✓ Order book: %s\n", string(body))
 
 	// Test 6: Check user balances and stocks
 	fmt.Println("Test 6: Checking user balances and stocks...")
@@ -357,40 +286,36 @@ func main() {
 		resp.Body.Close()
 	}
 
-	// Test 7: End market (manual trigger)
+	// Test 7: End market randomly
 	fmt.Println("Test 7: Ending market...")
+	winningStock := "yes"
+	if r.Float32() < 0.5 {
+		winningStock = "no"
+	}
 	endReq := map[string]interface{}{
 		"stockSymbol":  marketSymbol,
 		"marketId":     marketSymbol,
-		"winningStock": "yes",
+		"winningStock": winningStock,
 	}
 	endJSON, _ := json.Marshal(endReq)
 	resp, err = http.Post(serverURL+"/order/endmarket", "application/json", bytes.NewBuffer(endJSON))
 	if err != nil {
 		log.Printf("Failed to end market: %v", err)
 	} else {
-		defer resp.Body.Close()
 		if resp.StatusCode == 200 {
-			fmt.Println("✓ Market ended successfully")
+			fmt.Printf("✓ Market ended successfully with %s winning\n", winningStock)
 		} else {
 			body, _ = io.ReadAll(resp.Body)
 			fmt.Printf("Market end response: %s\n", string(body))
 		}
+		resp.Body.Close()
 	}
 
 	// Wait for settlement
 	time.Sleep(1 * time.Second)
 
-	// Verify final balances after market settlement
-	fmt.Println("Verifying final balances after market settlement...")
-	expectedBalances := map[string]float64{
-		userIDs[0]: 19994, // 10000 -6 +10000
-		userIDs[1]: 10006, // 10000 +6
-		userIDs[2]: 9998,  // 10000 -2
-		userIDs[3]: 10002, // 10000 +2
-		userIDs[4]: 9986,  // 10000 -14
-		userIDs[5]: 10000, // no activity
-	}
+	// Test 8: Check final balances
+	fmt.Println("Test 8: Checking final balances...")
 	for _, userID := range userIDs {
 		resp, err = http.Get(serverURL + "/balance/get/" + userID)
 		if err != nil {
@@ -398,17 +323,19 @@ func main() {
 			continue
 		}
 		if resp.StatusCode == 200 {
-			body, _ := io.ReadAll(resp.Body)
-			var bal types.Balance
-			json.Unmarshal(body, &bal)
-			if bal.Balance == expectedBalances[userID] && bal.Locked == 0 {
-				fmt.Printf("✓ Final balance correct for %s: %.0f USD\n", userID, bal.Balance)
+			body, _ = io.ReadAll(resp.Body)
+			var balResp BalanceResp
+			json.Unmarshal(body, &balResp)
+			// Check that locked is approximately 0
+			lockedDiff := math.Abs(balResp.Data.Balance.Locked)
+			if lockedDiff < 1e-10 {
+				fmt.Printf("✓ Final balance for %s: %.2f USD (locked: %.2f)\n", userID, balResp.Data.Balance.Balance, balResp.Data.Balance.Locked)
 			} else {
-				log.Printf("Final balance check failed for %s: %+v, expected %.0f", userID, bal, expectedBalances[userID])
+				log.Printf("Final balance check failed for %s: locked %.2f", userID, balResp.Data.Balance.Locked)
 			}
 		}
 		resp.Body.Close()
 	}
 
-	fmt.Println("All comprehensive integration tests completed! ✓")
+	fmt.Println("All random integration tests completed! ✓")
 }

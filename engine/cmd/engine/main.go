@@ -67,63 +67,72 @@ func addMarketMaker(symbol string) {
 	stockMsgBytes, _ := json.Marshal(stockMsg)
 	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, stockMsgBytes)
 
-	// Add market maker orders
-	orderId1, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
-	order1 := types.Order{
-		Id:              orderId1,
-		UserId:          "marketmaker",
-		OrderType:       types.SELL,
-		Symbol:          symbol,
-		SymbolStockType: "yes",
-		Price:           6.0,
-		Quantity:        100,
-		FilledQty:       0,
-		Status:          types.PENDING,
-		CreatedAt:       time.Now().Format(time.RFC3339),
-		UpdatedAt:       time.Now().Format(time.RFC3339),
-	}
-	orderData1, _ := json.Marshal(order1)
-	orderMsg1 := types.IncomingMessage{Type: "ORDER", Data: orderData1}
-	orderMsgBytes1, _ := json.Marshal(orderMsg1)
-	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, orderMsgBytes1)
+	// Add market maker orders with spread
+	yesPrices := []float64{50, 55, 60, 65, 70}
+	noPrices := []float64{30, 35, 40, 45, 50}
 
-	orderId2, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
-	order2 := types.Order{
-		Id:              orderId2,
-		UserId:          "marketmaker",
-		OrderType:       types.BUY,
-		Symbol:          symbol,
-		SymbolStockType: "no",
-		Price:           4.0,
-		Quantity:        100,
-		FilledQty:       0,
-		Status:          types.PENDING,
-		CreatedAt:       time.Now().Format(time.RFC3339),
-		UpdatedAt:       time.Now().Format(time.RFC3339),
-	}
-	orderData2, _ := json.Marshal(order2)
-	orderMsg2 := types.IncomingMessage{Type: "ORDER", Data: orderData2}
-	orderMsgBytes2, _ := json.Marshal(orderMsg2)
-	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, orderMsgBytes2)
-
-	// Update order book
 	priceMap := OrderBook[symbol].Yes
-	if _, exists := priceMap[6.0]; !exists {
-		priceMap[6.0] = types.PriceLevel{Total: 0, Orders: make(map[string]types.OrderBookEntry)}
-	}
-	priceLevel := priceMap[6.0]
-	priceLevel.Total += 100
-	priceLevel.Orders[orderId1] = types.OrderBookEntry{UserId: "marketmaker", Quantity: 100, Type: "regular"}
-	priceMap[6.0] = priceLevel
-
 	priceMapNo := OrderBook[symbol].No
-	if _, exists := priceMapNo[4.0]; !exists {
-		priceMapNo[4.0] = types.PriceLevel{Total: 0, Orders: make(map[string]types.OrderBookEntry)}
+
+	for _, price := range yesPrices {
+		orderId, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
+		quantity := 20.0
+		order := types.Order{
+			Id:              orderId,
+			UserId:          "marketmaker",
+			OrderType:       types.SELL,
+			Symbol:          symbol,
+			SymbolStockType: "yes",
+			Price:           price,
+			Quantity:        quantity,
+			FilledQty:       0,
+			Status:          types.PENDING,
+			CreatedAt:       time.Now().Format(time.RFC3339),
+			UpdatedAt:       time.Now().Format(time.RFC3339),
+		}
+		orderData, _ := json.Marshal(order)
+		orderMsg := types.IncomingMessage{Type: "ORDER", Data: orderData}
+		orderMsgBytes, _ := json.Marshal(orderMsg)
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, orderMsgBytes)
+
+		if _, exists := priceMap[price]; !exists {
+			priceMap[price] = types.PriceLevel{Total: 0, Orders: make(map[string]types.OrderBookEntry)}
+		}
+		priceLevel := priceMap[price]
+		priceLevel.Total += quantity
+		priceLevel.Orders[orderId] = types.OrderBookEntry{UserId: "marketmaker", Quantity: quantity, Price: price, Type: "regular"}
+		priceMap[price] = priceLevel
 	}
-	priceLevelNo := priceMapNo[4.0]
-	priceLevelNo.Total += 100
-	priceLevelNo.Orders[orderId2] = types.OrderBookEntry{UserId: "marketmaker", Quantity: 100, Type: "reverted"}
-	priceMapNo[4.0] = priceLevelNo
+
+	for _, price := range noPrices {
+		orderId, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
+		quantity := 20.0
+		order := types.Order{
+			Id:              orderId,
+			UserId:          "marketmaker",
+			OrderType:       types.SELL,
+			Symbol:          symbol,
+			SymbolStockType: "no",
+			Price:           price,
+			Quantity:        quantity,
+			FilledQty:       0,
+			Status:          types.PENDING,
+			CreatedAt:       time.Now().Format(time.RFC3339),
+			UpdatedAt:       time.Now().Format(time.RFC3339),
+		}
+		orderData, _ := json.Marshal(order)
+		orderMsg := types.IncomingMessage{Type: "ORDER", Data: orderData}
+		orderMsgBytes, _ := json.Marshal(orderMsg)
+		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, orderMsgBytes)
+
+		if _, exists := priceMapNo[price]; !exists {
+			priceMapNo[price] = types.PriceLevel{Total: 0, Orders: make(map[string]types.OrderBookEntry)}
+		}
+		priceLevel := priceMapNo[price]
+		priceLevel.Total += quantity
+		priceLevel.Orders[orderId] = types.OrderBookEntry{UserId: "marketmaker", Quantity: quantity, Price: price, Type: "regular"}
+		priceMapNo[price] = priceLevel
+	}
 
 	OrderBook[symbol] = types.SymbolOrderBook{Yes: priceMap, No: priceMapNo}
 }
@@ -299,13 +308,13 @@ func handleIncomingMessages(message []byte) error {
 		}
 		// Create balance for new user
 		balanceId := user.Id // Use user ID as balance ID for simplicity
-		newBalance := types.Balance{Id: balanceId, UserId: user.Id, Balance: 10000, Locked: 0}
+		newBalance := types.Balance{Id: balanceId, UserId: user.Id, Balance: 100, Locked: 0}
 		err = database.CreateOrUpdateBalance(newBalance)
 		if err != nil {
 			return err
 		}
 		// Update in-memory USDBalances immediately
-		USDBalances[user.Id] = types.USDBalance{Balance: 10000, Locked: 0}
+		USDBalances[user.Id] = types.USDBalance{Balance: 100, Locked: 0}
 		engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, message).Err()
 		engineToServerPubSubClient.LPush(context.Background(), "SERVER_RESPONSES_QUEUE", message).Err()
 		return nil
