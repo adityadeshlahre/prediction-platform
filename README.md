@@ -2,6 +2,8 @@
 
 ## Architecture
 
+<img width="1679" height="1191" alt="proBooArch" src="https://github.com/user-attachments/assets/6e054b2f-4cf0-43fc-8cc0-b1175374ad9c" />
+
 ## Demo Video
 
 [![Prediction Platform demo video](https://img.youtube.com/vi/zRrTNtnqacE/0.jpg)](https://youtu.be/zRrTNtnqacE)
