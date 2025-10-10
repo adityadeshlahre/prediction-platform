@@ -13,6 +13,7 @@ import (
 	server "github.com/adityadeshlahre/probo-v1/engine/handler"
 	"github.com/adityadeshlahre/probo-v1/engine/market"
 	"github.com/adityadeshlahre/probo-v1/engine/orderbook"
+	"github.com/adityadeshlahre/probo-v1/engine/s3"
 	"github.com/adityadeshlahre/probo-v1/engine/trading"
 	sharedRedis "github.com/adityadeshlahre/probo-v1/shared/redis"
 	types "github.com/adityadeshlahre/probo-v1/shared/types"
@@ -181,6 +182,15 @@ func addMarketMaker(symbol string) {
 
 func main() {
 	sharedRedis.InitRedis()
+
+	// Initialize S3 logger for order book backups
+	if err := s3.InitS3Logger(); err != nil {
+		log.Printf("Failed to initialize S3 logger: %v", err)
+	} else {
+		// Start periodic upload of order book logs to S3
+		s3.StartPeriodicUpload(OrderBook, USDBalances, StockBalances)
+	}
+
 	e := server.NewServer()
 	go func() {
 		if err := e.Start(":8082"); err != nil {
