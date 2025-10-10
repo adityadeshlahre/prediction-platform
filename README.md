@@ -2,7 +2,9 @@
 
 ## Architecture
 
-[]()
+## Demo Video
+
+[![Prediction Platform demo video](https://img.youtube.com/vi/zRrTNtnqacE/0.jpg)](https://youtu.be/zRrTNtnqacE)
 
 ### Services
 
