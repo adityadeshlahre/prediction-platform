@@ -47,7 +47,7 @@ func main() {
 	fmt.Println("Test 1: Creating multiple users...")
 	userIDs := make([]string, numUsers)
 	for i := 0; i < numUsers; i++ {
-		userID := fmt.Sprintf("%d", i+1)
+		userID := fmt.Sprintf("user_%d", time.Now().UnixNano())
 		userIDs[i] = userID
 		resp, err := http.Post(serverURL+"/user/"+userID, "application/json", nil)
 		if err != nil {

@@ -78,7 +78,7 @@ func mintStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 	} else {
 		oppositeStockType = "yes"
 	}
-	correspondingPrice := 1.0 - price
+	correspondingPrice := 100.0 - price
 
 	// Initialize stock balances if they don't exist
 	if _, exists := StockBalances[sellerId]; !exists {
@@ -98,6 +98,24 @@ func mintStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 			Yes: types.StockPosition{Quantity: 0, Locked: 0},
 			No:  types.StockPosition{Quantity: 0, Locked: 0},
 		}
+	}
+
+	// Update USD balances
+	// For buyer: unlock if locked, and subtract price from balance
+	if buyerBalance, exists := USDBalances[userId]; exists {
+		if buyerBalance.Locked >= availableQuantity*correspondingPrice {
+			buyerBalance.Locked -= availableQuantity * correspondingPrice
+		}
+		buyerBalance.Balance -= availableQuantity * price
+		USDBalances[userId] = buyerBalance
+	}
+
+	// For seller: unlock locked funds and add corresponding price to balance
+	if sellerBalance, exists := USDBalances[sellerId]; exists {
+		fmt.Printf("mintStocks: seller %s locked %.2f -> %.2f, balance %.2f -> %.2f (unlock %.2f, add %.2f)\n", sellerId, sellerBalance.Locked, sellerBalance.Locked-availableQuantity*correspondingPrice, sellerBalance.Balance, sellerBalance.Balance+availableQuantity*correspondingPrice, availableQuantity*correspondingPrice, availableQuantity*correspondingPrice)
+		sellerBalance.Locked -= availableQuantity * correspondingPrice
+		sellerBalance.Balance += availableQuantity * correspondingPrice
+		USDBalances[sellerId] = sellerBalance
 	}
 
 	// Mint stocks: seller gets opposite type, buyer gets requested type
@@ -121,39 +139,6 @@ func mintStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 		StockBalances[userId][stockSymbol] = buyerStock
 	}
 
-	// Update USD balances
-	if buyerBalance, exists := USDBalances[userId]; exists {
-		buyerBalance.Locked -= availableQuantity * price
-		USDBalances[userId] = buyerBalance
-	}
-
-	if sellerBalance, exists := USDBalances[sellerId]; exists {
-		sellerBalance.Locked -= availableQuantity * correspondingPrice
-		sellerBalance.Balance += availableQuantity * correspondingPrice
-		USDBalances[sellerId] = sellerBalance
-	}
-
-	if stockType == "yes" {
-		buyerStock := StockBalances[userId][stockSymbol]
-		buyerStock.Yes.Quantity += availableQuantity
-		StockBalances[userId][stockSymbol] = buyerStock
-	} else {
-		buyerStock := StockBalances[userId][stockSymbol]
-		buyerStock.No.Quantity += availableQuantity
-		StockBalances[userId][stockSymbol] = buyerStock
-	}
-
-	// Update USD balances
-	if buyerBalance, exists := USDBalances[userId]; exists {
-		buyerBalance.Balance -= availableQuantity * price
-		USDBalances[userId] = buyerBalance
-	}
-
-	if sellerBalance, exists := USDBalances[sellerId]; exists {
-		sellerBalance.Locked -= availableQuantity * correspondingPrice
-		USDBalances[sellerId] = sellerBalance
-	}
-
 	// Send database updates
 	sendUSDBalancesToDB()
 
@@ -162,6 +147,8 @@ func mintStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 
 // swapStocks transfers existing stocks between users
 func swapStocks(userId, stockSymbol, sellerId string, price float64, stockType string, availableQuantity float64) error {
+	correspondingPrice := 100.0 - price
+
 	// Initialize stock balances if they don't exist
 	if _, exists := StockBalances[userId]; !exists {
 		StockBalances[userId] = make(types.UserStockBalance)
@@ -210,11 +197,17 @@ func swapStocks(userId, stockSymbol, sellerId string, price float64, stockType s
 
 	// Update USD balances
 	if buyerBalance, exists := USDBalances[userId]; exists {
-		buyerBalance.Locked -= availableQuantity * price
+		if buyerBalance.Locked >= availableQuantity*correspondingPrice {
+			fmt.Printf("swapStocks: buyer %s locked %.2f -> %.2f (unlock %.2f)\n", userId, buyerBalance.Locked, buyerBalance.Locked-availableQuantity*correspondingPrice, availableQuantity*correspondingPrice)
+			buyerBalance.Locked -= availableQuantity * correspondingPrice
+		} else {
+			fmt.Printf("swapStocks: buyer %s locked %.2f, not enough to unlock %.2f\n", userId, buyerBalance.Locked, availableQuantity*correspondingPrice)
+		}
 		USDBalances[userId] = buyerBalance
 	}
 
 	if sellerBalance, exists := USDBalances[sellerId]; exists {
+		fmt.Printf("swapStocks: seller %s balance %.2f -> %.2f (add %.2f)\n", sellerId, sellerBalance.Balance, sellerBalance.Balance+availableQuantity*price, availableQuantity*price)
 		sellerBalance.Balance += availableQuantity * price
 		USDBalances[sellerId] = sellerBalance
 	}
@@ -413,7 +406,7 @@ func PlaceBuyOrder(orderData types.OrderProps) (map[string]interface{}, error) {
 	oppositeEntry.Orders[orderId] = types.OrderBookEntry{
 		UserId:   userId,
 		Quantity: requiredQuantity,
-		Price:    price,
+		Price:    correspondingPrice,
 		Type:     "reverted",
 	}
 	oppositePriceMap[correspondingPrice] = oppositeEntry
@@ -426,10 +419,10 @@ func PlaceBuyOrder(orderData types.OrderProps) (map[string]interface{}, error) {
 	}
 	OrderBook[stockSymbol] = symbolOrderBook
 
-	// Lock buyer balance
+	// Lock buyer balance at the corresponding price (since order is placed at corresponding price)
 	userBalance := USDBalances[userId]
-	userBalance.Locked += requiredQuantity * price
-	userBalance.Balance -= requiredQuantity * price
+	userBalance.Locked += requiredQuantity * correspondingPrice
+	// Balance is not decreased yet for reverted orders, only when matched
 	USDBalances[userId] = userBalance
 
 	// Send balance update

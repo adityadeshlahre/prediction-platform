@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/adityadeshlahre/probo-v1/engine/balance"
@@ -39,6 +40,7 @@ var transectionCounter int = 0
 var EngineAwaitsForResponseMap = make(map[string]chan string)
 
 func addMarketMaker(symbol string) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	// Add market maker
 	USDBalances["marketmaker"] = types.USDBalance{Balance: 10000, Locked: 0}
 	if _, exists := StockBalances["marketmaker"]; !exists {
@@ -68,15 +70,55 @@ func addMarketMaker(symbol string) {
 	engineToDatabaseQueueClient.Publish(context.Background(), types.DB_ACTIONS, stockMsgBytes)
 
 	// Add market maker orders with spread
-	yesPrices := []float64{50, 55, 60, 65, 70}
-	noPrices := []float64{30, 35, 40, 45, 50}
+	yesPrices := []float64{
+		float64(50 + r.Intn(10)),
+		float64(53 + r.Intn(10)),
+		float64(55 + r.Intn(10)),
+		float64(57 + r.Intn(10)),
+		float64(60 + r.Intn(10)),
+		float64(62 + r.Intn(10)),
+		float64(65 + r.Intn(10)),
+		float64(67 + r.Intn(10)),
+		float64(70 + r.Intn(10)),
+		float64(72 + r.Intn(10)),
+		float64(75 + r.Intn(10)),
+		float64(77 + r.Intn(10)),
+		float64(80 + r.Intn(10)),
+		float64(82 + r.Intn(10)),
+		float64(85 + r.Intn(10)),
+		float64(87 + r.Intn(10)),
+		float64(90 + r.Intn(10)),
+		float64(92 + r.Intn(10)),
+		float64(95 + r.Intn(10)),
+	}
+	noPrices := []float64{
+		float64(5 + r.Intn(10)),
+		float64(7 + r.Intn(10)),
+		float64(10 + r.Intn(10)),
+		float64(12 + r.Intn(10)),
+		float64(15 + r.Intn(10)),
+		float64(17 + r.Intn(10)),
+		float64(20 + r.Intn(10)),
+		float64(22 + r.Intn(10)),
+		float64(25 + r.Intn(10)),
+		float64(27 + r.Intn(10)),
+		float64(30 + r.Intn(10)),
+		float64(32 + r.Intn(10)),
+		float64(35 + r.Intn(10)),
+		float64(37 + r.Intn(10)),
+		float64(40 + r.Intn(10)),
+		float64(42 + r.Intn(10)),
+		float64(45 + r.Intn(10)),
+		float64(47 + r.Intn(10)),
+		float64(50 + r.Intn(10)),
+	}
 
 	priceMap := OrderBook[symbol].Yes
 	priceMapNo := OrderBook[symbol].No
 
 	for _, price := range yesPrices {
 		orderId, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
-		quantity := 20.0
+		quantity := float64(r.Intn(10) + 1) // 1-10 random
 		order := types.Order{
 			Id:              orderId,
 			UserId:          "marketmaker",
@@ -106,7 +148,7 @@ func addMarketMaker(symbol string) {
 
 	for _, price := range noPrices {
 		orderId, _ := gonanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", 21)
-		quantity := 20.0
+		quantity := float64(r.Intn(10) + 1) // 1-10 random
 		order := types.Order{
 			Id:              orderId,
 			UserId:          "marketmaker",

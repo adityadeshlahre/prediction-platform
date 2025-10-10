@@ -61,6 +61,12 @@ func processWinnings(stockSymbol string, winningStock string) error {
 				}
 			}
 
+			// Unlock all locked stocks before clearing
+			symbolStocks.Yes.Quantity += symbolStocks.Yes.Locked
+			symbolStocks.Yes.Locked = 0
+			symbolStocks.No.Quantity += symbolStocks.No.Locked
+			symbolStocks.No.Locked = 0
+
 			// Clear stock balances for this symbol
 			delete(userStocks, stockSymbol)
 			StockBalances[userId] = userStocks
@@ -117,10 +123,10 @@ func processOrder(order types.OrderBookEntry, stockSymbol string, stockType stri
 
 	switch order.Type {
 	case "reverted":
-		// Unlock USD balance using the original price
+		// Unlock USD balance (no refund since balance was not decreased for reverted orders)
 		if balance, exists := USDBalances[order.UserId]; exists {
+			fmt.Printf("clearOrderBook: reverted order for %s, locked %.2f -> %.2f (unlock %.2f)\n", order.UserId, balance.Locked, balance.Locked-order.Quantity*order.Price, order.Quantity*order.Price)
 			balance.Locked -= order.Quantity * order.Price
-			balance.Balance += order.Quantity * order.Price
 			USDBalances[order.UserId] = balance
 		}
 	case "regular":
@@ -128,9 +134,11 @@ func processOrder(order types.OrderBookEntry, stockSymbol string, stockType stri
 		if userStocks, exists := StockBalances[order.UserId]; exists {
 			if symbolStocks, exists := userStocks[stockSymbol]; exists {
 				if stockType == "yes" {
+					fmt.Printf("clearOrderBook: regular order for %s yes, locked %.2f -> %.2f, quantity %.2f -> %.2f (unlock %.2f)\n", order.UserId, symbolStocks.Yes.Locked, symbolStocks.Yes.Locked-order.Quantity, symbolStocks.Yes.Quantity, symbolStocks.Yes.Quantity+order.Quantity, order.Quantity)
 					symbolStocks.Yes.Locked -= order.Quantity
 					symbolStocks.Yes.Quantity += order.Quantity
 				} else {
+					fmt.Printf("clearOrderBook: regular order for %s no, locked %.2f -> %.2f, quantity %.2f -> %.2f (unlock %.2f)\n", order.UserId, symbolStocks.No.Locked, symbolStocks.No.Locked-order.Quantity, symbolStocks.No.Quantity, symbolStocks.No.Quantity+order.Quantity, order.Quantity)
 					symbolStocks.No.Locked -= order.Quantity
 					symbolStocks.No.Quantity += order.Quantity
 				}
@@ -251,13 +259,9 @@ func EndMarket(stockSymbol string, winningStock string) error {
 	}
 
 	// Process payouts for reverted buy orders on winning side
-	oppositeStockType := "no"
-	if strings.ToLower(winningStock) == "no" {
-		oppositeStockType = "yes"
-	}
 	if orderBook, exists := OrderBook[stockSymbol]; exists {
 		var priceMap types.PriceOrderBook
-		if oppositeStockType == "yes" {
+		if strings.ToLower(winningStock) == "yes" {
 			priceMap = orderBook.Yes
 		} else {
 			priceMap = orderBook.No
